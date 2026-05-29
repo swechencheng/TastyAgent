@@ -1,0 +1,214 @@
+"""FastAPI app exposing the agent's ledger, P/L, benchmark, and live controls.
+
+`create_app(session_factory, runtime)` is the testable factory (inject an in-memory
+DB). A module-level `app` is also built from settings for `uvicorn`.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Iterator
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
+
+from ..config import TradingMode
+from ..db.models import EquitySnapshot
+from ..execution.executor import Executor
+from ..portfolio import benchmark as bench
+from ..portfolio.ledger import Ledger
+from ..portfolio.pnl import summarize
+from ..scheduler import is_market_open
+from .runtime import Runtime
+from .schemas import (
+    ActionResult,
+    BenchmarkOut,
+    BenchmarkPoint,
+    KillSwitchRequest,
+    ModeRequest,
+    PnLOut,
+    StatusOut,
+    TradeOut,
+)
+
+
+def create_app(
+    session_factory: sessionmaker[Session],
+    runtime: Runtime,
+    *,
+    client=None,
+    metrics_session=None,
+) -> FastAPI:
+    app = FastAPI(title="TastyAgent", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.state.session_factory = session_factory
+    app.state.runtime = runtime
+    app.state.client = client
+    app.state.metrics_session = metrics_session
+
+    def get_session() -> Iterator[Session]:
+        s = session_factory()
+        try:
+            yield s
+        finally:
+            s.close()
+
+    def get_runtime() -> Runtime:
+        return app.state.runtime
+
+    @app.get("/api/health")
+    def health() -> dict:
+        return {"status": "ok"}
+
+    @app.get("/api/status", response_model=StatusOut)
+    def status(rt: Runtime = Depends(get_runtime)) -> StatusOut:
+        return StatusOut(
+            mode=rt.mode.value,
+            kill_switch=rt.kill_switch,
+            market_open=is_market_open(),
+            starting_capital=rt.starting_capital,
+            requires_approval=rt.mode.requires_approval,
+        )
+
+    @app.get("/api/trades", response_model=list[TradeOut])
+    def trades(s: Session = Depends(get_session)) -> list[TradeOut]:
+        return [TradeOut.model_validate(t) for t in Ledger(s).all_trades()]
+
+    @app.get("/api/positions", response_model=list[TradeOut])
+    def positions(s: Session = Depends(get_session)) -> list[TradeOut]:
+        return [TradeOut.model_validate(t) for t in Ledger(s).open_trades()]
+
+    @app.get("/api/trades/closed", response_model=list[TradeOut])
+    def closed(s: Session = Depends(get_session)) -> list[TradeOut]:
+        return [TradeOut.model_validate(t) for t in Ledger(s).closed_trades()]
+
+    @app.get("/api/approvals", response_model=list[TradeOut])
+    def approvals(s: Session = Depends(get_session)) -> list[TradeOut]:
+        return [TradeOut.model_validate(t) for t in Ledger(s).pending_approval()]
+
+    @app.get("/api/pnl", response_model=PnLOut)
+    def pnl(s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)) -> PnLOut:
+        summary = summarize(Ledger(s).all_trades())
+        return PnLOut(
+            realized_pnl=summary.realized_pnl,
+            unrealized_pnl=summary.unrealized_pnl,
+            total_pnl=summary.total_pnl,
+            open_count=summary.open_count,
+            closed_count=summary.closed_count,
+            wins=summary.wins,
+            losses=summary.losses,
+            win_rate=summary.win_rate,
+            profit_pct=summary.profit_pct(rt.starting_capital),
+            starting_capital=rt.starting_capital,
+        )
+
+    @app.get("/api/benchmark", response_model=BenchmarkOut)
+    def benchmark(s: Session = Depends(get_session)) -> BenchmarkOut:
+        snaps = list(s.scalars(select(EquitySnapshot).order_by(EquitySnapshot.ts)))
+        equity_curve = [(snap.ts.date(), snap.net_liq) for snap in snaps]
+        sp_curve: list[tuple[date, float]] = [
+            (snap.ts.date(), snap.sp500_close) for snap in snaps if snap.sp500_close is not None
+        ]
+        # If we didn't persist S&P alongside snapshots, try a live fetch for the range.
+        if equity_curve and not sp_curve:
+            try:
+                sp_curve = bench.fetch_sp500_closes(equity_curve[0][0], date.today())
+            except Exception:  # noqa: BLE001 - benchmark is best-effort
+                sp_curve = []
+        cmp = bench.compare(equity_curve, sp_curve)
+        return BenchmarkOut(
+            strategy_return_pct=cmp.strategy_return_pct,
+            sp500_return_pct=cmp.sp500_return_pct,
+            outperformance_pct=cmp.outperformance_pct,
+            strategy_curve=[BenchmarkPoint(date=d, value=v) for d, v in cmp.strategy_curve],
+            sp500_curve=[BenchmarkPoint(date=d, value=v) for d, v in cmp.sp500_curve],
+        )
+
+    # --- controls ---
+    @app.post("/api/mode", response_model=StatusOut)
+    def set_mode(req: ModeRequest, rt: Runtime = Depends(get_runtime)) -> StatusOut:
+        try:
+            rt.mode = TradingMode(req.mode)
+        except ValueError:
+            raise HTTPException(400, f"invalid mode: {req.mode}")
+        return status(rt)
+
+    @app.post("/api/kill-switch", response_model=StatusOut)
+    def kill_switch(req: KillSwitchRequest, rt: Runtime = Depends(get_runtime)) -> StatusOut:
+        rt.kill_switch = req.engaged
+        return status(rt)
+
+    @app.post("/api/approvals/{trade_id}/approve", response_model=ActionResult)
+    async def approve(
+        trade_id: int, s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+    ) -> ActionResult:
+        ex = Executor(Ledger(s), rt.mode, rt.placer)
+        out = await ex.approve(trade_id)
+        if out.action == "error":
+            raise HTTPException(409, out.detail)
+        return ActionResult(**out.__dict__)
+
+    @app.post("/api/approvals/{trade_id}/reject", response_model=ActionResult)
+    def reject(
+        trade_id: int, s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+    ) -> ActionResult:
+        out = Executor(Ledger(s), rt.mode, rt.placer).reject(trade_id)
+        if out.action == "error":
+            raise HTTPException(409, out.detail)
+        return ActionResult(**out.__dict__)
+
+    @app.post("/api/cycle/run")
+    async def run_cycle_now(
+        s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+    ) -> dict:
+        if app.state.client is None:
+            raise HTTPException(503, "no broker client configured on this server")
+        from ..runner import run_one_cycle
+
+        return await run_one_cycle(
+            client=app.state.client,
+            metrics_session=app.state.metrics_session,
+            session=s,
+            runtime=rt,
+        )
+
+    return app
+
+
+def _default_app() -> FastAPI:
+    from pathlib import Path
+
+    from dotenv import load_dotenv
+
+    # uvicorn doesn't load .env; do it here, overriding any empty harness vars.
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
+
+    from ..db.session import init_db, make_engine, session_factory
+    from ..settings import load_settings
+    from ..tt.client import from_settings, metrics_session_from_env
+
+    settings = load_settings()
+    engine = make_engine()
+    init_db(engine)
+    runtime = Runtime(mode=settings.mode, strategy=settings.strategy_params())
+
+    client = metrics_session = None
+    try:
+        client = from_settings(settings)
+        metrics_session = metrics_session_from_env()
+    except Exception:  # noqa: BLE001 - API still serves read endpoints without a broker
+        pass
+
+    return create_app(
+        session_factory(engine), runtime, client=client, metrics_session=metrics_session
+    )
+
+
+app = _default_app()

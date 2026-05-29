@@ -1,0 +1,59 @@
+"""Async token-bucket rate limiter.
+
+TastyTrade does not publish official rate limits and IP-blocks on repeated auth
+failures, so every outbound API call is funnelled through this limiter. Default
+~2 requests/second matches what community SDKs self-throttle to.
+
+The clock is injectable so the refill behaviour is deterministically testable.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections.abc import Callable
+
+
+class AsyncTokenBucket:
+    def __init__(
+        self,
+        rate: float = 2.0,  # tokens added per second
+        capacity: float = 2.0,  # max burst
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], "asyncio.Future"] | None = None,
+    ) -> None:
+        if rate <= 0 or capacity <= 0:
+            raise ValueError("rate and capacity must be positive")
+        self._rate = rate
+        self._capacity = capacity
+        self._tokens = capacity
+        self._clock = clock
+        self._sleep = sleep or asyncio.sleep
+        self._updated = clock()
+        self._lock = asyncio.Lock()
+
+    def _refill(self) -> None:
+        now = self._clock()
+        elapsed = now - self._updated
+        if elapsed > 0:
+            self._tokens = min(self._capacity, self._tokens + elapsed * self._rate)
+            self._updated = now
+
+    @property
+    def tokens(self) -> float:
+        self._refill()
+        return self._tokens
+
+    async def acquire(self, amount: float = 1.0) -> None:
+        """Block until ``amount`` tokens are available, then consume them."""
+        if amount > self._capacity:
+            raise ValueError("amount exceeds bucket capacity")
+        async with self._lock:
+            while True:
+                self._refill()
+                if self._tokens >= amount:
+                    self._tokens -= amount
+                    return
+                deficit = amount - self._tokens
+                await self._sleep(deficit / self._rate)
