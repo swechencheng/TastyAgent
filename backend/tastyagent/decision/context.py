@@ -42,6 +42,18 @@ def build_regime(metrics: dict[str, IVMetrics], params: StrategyParams, vix: flo
     }
 
 
+def rank_universe(metrics: dict[str, IVMetrics], top_n: int) -> list[str]:
+    """Top-N symbols by IV rank (tie-break on liquidity) — where to spend the
+    expensive chain/greeks work each cycle. tastytrade: sell premium where IVR is
+    highest, in liquid names."""
+    ranked = sorted(
+        (m for m in metrics.values() if m.iv_rank is not None),
+        key=lambda m: (m.iv_rank, m.liquidity_rating or 0),
+        reverse=True,
+    )
+    return [m.symbol for m in ranked[:top_n]]
+
+
 async def gather_context(
     metrics_session,
     params: StrategyParams,

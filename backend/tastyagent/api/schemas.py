@@ -31,6 +31,7 @@ class TradeOut(BaseModel):
     dte_at_entry: int
     current_cost_to_close: float
     unrealized_pnl: float
+    probability_of_profit: float
     realized_pnl: float | None
     exit_reason: str | None
     is_win: bool | None
@@ -58,6 +59,7 @@ class StatusOut(BaseModel):
     market_open: bool
     starting_capital: float
     requires_approval: bool
+    scheduler_running: bool = False
 
 
 class BenchmarkPoint(BaseModel):
@@ -86,3 +88,36 @@ class ModeRequest(BaseModel):
 
 class KillSwitchRequest(BaseModel):
     engaged: bool
+
+
+class WatchlistItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    symbol: str
+    enabled: bool
+    source: str
+
+
+class WatchlistAdd(BaseModel):
+    symbol: str
+
+
+class WatchlistImport(BaseModel):
+    symbols: list[str]
+    source: str = "imported"
+
+
+class ToggleRequest(BaseModel):
+    enabled: bool
+
+
+class RankedSymbol(BaseModel):
+    symbol: str
+    iv_rank: float | None
+    iv_percentile: float | None
+    liquidity_rating: int | None
+
+
+class TastytradeWatchlist(BaseModel):
+    name: str
+    group: str | None = None
+    symbols: list[str]

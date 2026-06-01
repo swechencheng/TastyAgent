@@ -10,6 +10,19 @@ from datetime import date
 from enum import Enum
 
 
+def probability_of_profit(short_deltas: list[float]) -> float:
+    """Model-free PoP estimate from short-leg deltas.
+
+    Delta approximates an option's probability of finishing in-the-money, so the
+    probability that all short legs expire OTM (the trade is profitable) is
+    ~ 1 - sum(|short deltas|). This is the heuristic behind "16-delta strangle ≈
+    ~68% PoP". It ignores the small breakeven cushion from the credit, so it's a
+    slightly conservative estimate. Clamped to [0, 1].
+    """
+    pop = 1.0 - sum(abs(d) for d in short_deltas)
+    return max(0.0, min(1.0, pop))
+
+
 class Strategy(str, Enum):
     SHORT_STRANGLE = "short_strangle"
     NAKED_PUT = "naked_put"
@@ -85,6 +98,10 @@ class CandidateTrade:
         shorts = [abs(leg.delta) for leg in self.legs if leg.is_short]
         return max(shorts) if shorts else 0.0
 
+    @property
+    def probability_of_profit(self) -> float:
+        return probability_of_profit([leg.delta for leg in self.legs if leg.is_short])
+
 
 @dataclass(frozen=True)
 class OpenPosition:
@@ -99,6 +116,7 @@ class OpenPosition:
     buying_power_reduction: float
     dte_remaining: int
     as_of: date
+    current_max_short_delta: float | None = None  # live |delta| of the most-tested short leg
 
     @property
     def days_held(self) -> int:

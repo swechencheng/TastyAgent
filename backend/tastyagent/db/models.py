@@ -96,6 +96,12 @@ class Trade(Base):
             return None
         return self.realized_pnl > 0
 
+    @property
+    def probability_of_profit(self) -> float:
+        from ..models import probability_of_profit as pop
+
+        return pop([leg.delta for leg in self.legs if leg.action.startswith("sell")])
+
 
 class TradeLeg(Base):
     __tablename__ = "trade_legs"
@@ -110,6 +116,17 @@ class TradeLeg(Base):
     delta: Mapped[float] = mapped_column(Float, default=0.0)
 
     trade: Mapped[Trade] = relationship(back_populates="legs")
+
+
+class WatchlistEntry(Base):
+    """A symbol the agent may analyze. The enabled set is the trading universe."""
+
+    __tablename__ = "watchlist"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    source: Mapped[str] = mapped_column(String(48), default="custom")  # custom | default | tt:<name>
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class EquitySnapshot(Base):

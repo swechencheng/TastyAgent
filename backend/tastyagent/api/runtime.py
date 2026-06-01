@@ -14,7 +14,7 @@ Placer = Callable[[Trade], Awaitable[str]]
 @dataclass
 class Runtime:
     mode: TradingMode = TradingMode.SANDBOX
-    starting_capital: float = 1_000_000.0
+    starting_capital: float = 10_000.0  # working capital the agent sizes against
     kill_switch: bool = False
     strategy: StrategyParams = field(default_factory=StrategyParams)
     placer: Placer | None = None  # set when a live/sandbox broker adapter is wired

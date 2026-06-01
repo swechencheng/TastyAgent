@@ -102,6 +102,16 @@ button.kill.engaged {
   background: var(--red);
   color: white;
 }
+button.auto.engaged {
+  background: var(--green);
+  border-color: var(--green);
+  color: #06210f;
+  font-weight: 600;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 .grid {
   display: grid;

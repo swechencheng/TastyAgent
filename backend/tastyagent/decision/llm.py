@@ -105,6 +105,7 @@ def _candidate_payload(candidate: CandidateTrade, cid: str) -> dict:
         "buying_power_per_contract": round(candidate.buying_power_reduction, 2),
         "underlying_price": round(candidate.underlying_price, 2),
         "max_short_leg_delta": round(candidate.max_short_leg_delta, 3),
+        "probability_of_profit": round(candidate.probability_of_profit, 3),
         "liquidity": {
             "bid_ask_width_pct": round(candidate.liquidity.bid_ask_width_pct, 4),
             "open_interest": candidate.liquidity.open_interest,

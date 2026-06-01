@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import EquityChart from "./EquityChart";
+import Watchlist from "./Watchlist";
 import {
   approveTrade,
   Benchmark,
@@ -10,9 +12,12 @@ import {
   fmtPct,
   Pnl,
   rejectTrade,
+  runCycle,
   setKillSwitch,
   setMode,
+  startScheduler,
   Status,
+  stopScheduler,
   Trade,
 } from "@/lib/api";
 
@@ -25,6 +30,7 @@ function signClass(n: number) {
 
 export default function Dashboard() {
   const { mutate } = useSWRConfig();
+  const [busy, setBusy] = useState(false);
   const status = useSWR<Status>("/api/status", fetcher, POLL);
   const pnl = useSWR<Pnl>("/api/pnl", fetcher, POLL);
   const positions = useSWR<Trade[]>("/api/positions", fetcher, POLL);
@@ -68,6 +74,31 @@ export default function Dashboard() {
                   </option>
                 ))}
               </select>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await runCycle();
+                  } catch (e) {
+                    alert(`Cycle failed: ${e}`);
+                  } finally {
+                    setBusy(false);
+                    refreshAll();
+                  }
+                }}
+              >
+                {busy ? "Running cycle…" : "Run cycle"}
+              </button>
+              <button
+                className={`auto ${s.scheduler_running ? "engaged" : ""}`}
+                onClick={async () => {
+                  s.scheduler_running ? await stopScheduler() : await startScheduler();
+                  refreshAll();
+                }}
+              >
+                {s.scheduler_running ? "Auto: ON" : "Auto: OFF"}
+              </button>
               <button
                 className={`kill ${s.kill_switch ? "engaged" : ""}`}
                 onClick={async () => {
@@ -140,6 +171,7 @@ export default function Dashboard() {
                 <th>Strategy</th>
                 <th className="num">Contracts</th>
                 <th className="num">Credit</th>
+                <th className="num">PoP</th>
                 <th>Rationale</th>
                 <th></th>
               </tr>
@@ -151,6 +183,7 @@ export default function Dashboard() {
                   <td>{t.strategy}</td>
                   <td className="num">{t.contracts}</td>
                   <td className="num">{fmtMoney(t.entry_credit)}</td>
+                  <td className="num">{fmtPct(t.probability_of_profit)}</td>
                   <td className="rationale">{t.rationale}</td>
                   <td>
                     <button
@@ -179,6 +212,9 @@ export default function Dashboard() {
         </section>
       )}
 
+      {/* Watchlist / universe */}
+      <Watchlist />
+
       {/* Open positions */}
       <section className="panel">
         <h2>Open positions</h2>
@@ -190,6 +226,7 @@ export default function Dashboard() {
                 <th>Strategy</th>
                 <th className="num">Qty</th>
                 <th className="num">Credit</th>
+                <th className="num">PoP</th>
                 <th className="num">Unrealized</th>
                 <th className="num">DTE</th>
                 <th>Why</th>
@@ -202,6 +239,7 @@ export default function Dashboard() {
                   <td>{t.strategy}</td>
                   <td className="num">{t.contracts}</td>
                   <td className="num">{fmtMoney(t.entry_credit)}</td>
+                  <td className="num">{fmtPct(t.probability_of_profit)}</td>
                   <td className={`num ${signClass(t.unrealized_pnl)}`}>{fmtMoney(t.unrealized_pnl)}</td>
                   <td className="num">{t.dte_at_entry}</td>
                   <td className="rationale">{t.rationale}</td>
@@ -237,6 +275,7 @@ function TradeList({ trades }: { trades: Trade[] }) {
         <tr>
           <th>Symbol</th>
           <th>Strategy</th>
+          <th className="num">PoP</th>
           <th className="num">P/L</th>
           <th>Exit</th>
         </tr>
@@ -246,6 +285,7 @@ function TradeList({ trades }: { trades: Trade[] }) {
           <tr key={t.id}>
             <td>{t.symbol}</td>
             <td>{t.strategy}</td>
+            <td className="num">{fmtPct(t.probability_of_profit)}</td>
             <td className={`num ${t.is_win ? "pos" : "neg"}`}>{fmtMoney(t.realized_pnl)}</td>
             <td className="rationale">{t.exit_reason || "—"}</td>
           </tr>

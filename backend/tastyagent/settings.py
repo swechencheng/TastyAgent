@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     tastytrade_account: str = Field(default="", alias="TASTYTRADE_ACCOUNT")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field(default="claude-opus-4-8", alias="ANTHROPIC_MODEL")
+    # Capital the agent sizes against. The sandbox account seeds at ~$1M with no
+    # withdrawal endpoint, so the agent simulates this working capital instead.
+    working_capital: float = Field(default=10_000.0, alias="TASTYAGENT_WORKING_CAPITAL")
 
     def strategy_params(self) -> StrategyParams:
         return _merge(StrategyParams(), _StrategyEnv())

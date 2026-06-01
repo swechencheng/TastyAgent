@@ -6,6 +6,7 @@ DB). A module-level `app` is also built from settings for `uvicorn`.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime
 from typing import Iterator
 
@@ -16,10 +17,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import TradingMode
 from ..db.models import EquitySnapshot
+from ..decision.context import DEFAULT_WATCHLIST
 from ..execution.executor import Executor
 from ..portfolio import benchmark as bench
 from ..portfolio.ledger import Ledger
 from ..portfolio.pnl import summarize
+from ..portfolio.watchlist import WatchlistRepo
 from ..scheduler import is_market_open
 from .runtime import Runtime
 from .schemas import (
@@ -29,8 +32,14 @@ from .schemas import (
     KillSwitchRequest,
     ModeRequest,
     PnLOut,
+    RankedSymbol,
     StatusOut,
+    TastytradeWatchlist,
+    ToggleRequest,
     TradeOut,
+    WatchlistAdd,
+    WatchlistImport,
+    WatchlistItem,
 )
 
 
@@ -52,6 +61,12 @@ def create_app(
     app.state.runtime = runtime
     app.state.client = client
     app.state.metrics_session = metrics_session
+    app.state.scheduler_task = None
+    app.state.scheduler_stop = None
+
+    def scheduler_running() -> bool:
+        t = app.state.scheduler_task
+        return bool(t and not t.done())
 
     def get_session() -> Iterator[Session]:
         s = session_factory()
@@ -75,6 +90,7 @@ def create_app(
             market_open=is_market_open(),
             starting_capital=rt.starting_capital,
             requires_approval=rt.mode.requires_approval,
+            scheduler_running=scheduler_running(),
         )
 
     @app.get("/api/trades", response_model=list[TradeOut])
@@ -179,6 +195,118 @@ def create_app(
             runtime=rt,
         )
 
+    async def _tick() -> None:
+        sess = session_factory()
+        try:
+            from ..runner import run_one_cycle
+
+            await run_one_cycle(
+                client=app.state.client,
+                metrics_session=app.state.metrics_session,
+                session=sess,
+                runtime=app.state.runtime,
+            )
+        finally:
+            sess.close()
+
+    @app.post("/api/scheduler/start", response_model=StatusOut)
+    def scheduler_start(
+        body: dict | None = None, rt: Runtime = Depends(get_runtime)
+    ) -> StatusOut:
+        if app.state.client is None:
+            raise HTTPException(503, "no broker client configured")
+        if not scheduler_running():
+            from ..scheduler import run_loop
+
+            body = body or {}
+            stop = asyncio.Event()
+            app.state.scheduler_stop = stop
+            app.state.scheduler_task = asyncio.create_task(
+                run_loop(
+                    _tick,
+                    interval_seconds=float(body.get("interval_seconds", 300)),
+                    market_hours_only=bool(body.get("market_hours_only", True)),
+                    stop=stop,
+                )
+            )
+        return status(rt)
+
+    @app.post("/api/scheduler/stop", response_model=StatusOut)
+    def scheduler_stop(rt: Runtime = Depends(get_runtime)) -> StatusOut:
+        if app.state.scheduler_stop is not None:
+            app.state.scheduler_stop.set()
+        return status(rt)
+
+    # --- watchlist (the agent's trading universe) ---
+    @app.get("/api/watchlist", response_model=list[WatchlistItem])
+    async def watchlist(s: Session = Depends(get_session)) -> list[WatchlistItem]:
+        repo = WatchlistRepo(s)
+        if not repo.all() and app.state.metrics_session is not None:
+            from ..tt.watchlists import seed_universe_from_tastytrade
+
+            try:
+                await seed_universe_from_tastytrade(repo, app.state.metrics_session)
+            except Exception:  # noqa: BLE001 - fall back to the static default
+                pass
+        repo.seed_default_if_empty(DEFAULT_WATCHLIST)
+        return [WatchlistItem.model_validate(e) for e in repo.all()]
+
+    @app.post("/api/watchlist", response_model=WatchlistItem)
+    def watchlist_add(req: WatchlistAdd, s: Session = Depends(get_session)) -> WatchlistItem:
+        return WatchlistItem.model_validate(WatchlistRepo(s).add(req.symbol))
+
+    @app.delete("/api/watchlist/{symbol}")
+    def watchlist_remove(symbol: str, s: Session = Depends(get_session)) -> dict:
+        if not WatchlistRepo(s).remove(symbol):
+            raise HTTPException(404, f"{symbol} not in watchlist")
+        return {"removed": symbol.upper()}
+
+    @app.post("/api/watchlist/{symbol}/toggle", response_model=WatchlistItem)
+    def watchlist_toggle(
+        symbol: str, req: ToggleRequest, s: Session = Depends(get_session)
+    ) -> WatchlistItem:
+        entry = WatchlistRepo(s).set_enabled(symbol, req.enabled)
+        if entry is None:
+            raise HTTPException(404, f"{symbol} not in watchlist")
+        return WatchlistItem.model_validate(entry)
+
+    @app.post("/api/watchlist/import")
+    def watchlist_import(req: WatchlistImport, s: Session = Depends(get_session)) -> dict:
+        added = WatchlistRepo(s).import_symbols(req.symbols, req.source)
+        return {"added": added}
+
+    @app.get("/api/watchlist/ranked", response_model=list[RankedSymbol])
+    async def watchlist_ranked(s: Session = Depends(get_session)) -> list[RankedSymbol]:
+        if app.state.metrics_session is None:
+            raise HTTPException(503, "no market-metrics session configured")
+        from ..tt.metrics import MarketMetricsUnavailable, get_iv_metrics
+
+        repo = WatchlistRepo(s)
+        repo.seed_default_if_empty(DEFAULT_WATCHLIST)
+        try:
+            metrics = await get_iv_metrics(app.state.metrics_session, [e.symbol for e in repo.all()])
+        except MarketMetricsUnavailable:
+            raise HTTPException(503, "IV rank unavailable")
+        items = [
+            RankedSymbol(
+                symbol=m.symbol, iv_rank=m.iv_rank,
+                iv_percentile=m.iv_percentile, liquidity_rating=m.liquidity_rating,
+            )
+            for m in metrics.values()
+        ]
+        items.sort(key=lambda x: (x.iv_rank if x.iv_rank is not None else -1.0), reverse=True)
+        return items
+
+    @app.get("/api/tastytrade-watchlists", response_model=list[TastytradeWatchlist])
+    async def tastytrade_watchlists() -> list[TastytradeWatchlist]:
+        # Public watchlists are a live-only service -> use the prod read-only session.
+        if app.state.metrics_session is None:
+            raise HTTPException(503, "no production session configured for watchlists")
+        from ..tt.watchlists import get_public_watchlists
+
+        wls = await get_public_watchlists(app.state.metrics_session)
+        return [TastytradeWatchlist(**w) for w in wls]
+
     return app
 
 
@@ -197,7 +325,11 @@ def _default_app() -> FastAPI:
     settings = load_settings()
     engine = make_engine()
     init_db(engine)
-    runtime = Runtime(mode=settings.mode, strategy=settings.strategy_params())
+    runtime = Runtime(
+        mode=settings.mode,
+        starting_capital=settings.working_capital,
+        strategy=settings.strategy_params(),
+    )
 
     client = metrics_session = None
     try:

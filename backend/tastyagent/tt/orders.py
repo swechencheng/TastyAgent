@@ -77,6 +77,25 @@ def build_credit_order(
     )
 
 
+def build_debit_order(
+    legs: list[tuple[Option, OrderAction]],
+    quantity: int,
+    debit: Decimal,
+    *,
+    tif: OrderTimeInForce = OrderTimeInForce.DAY,
+) -> NewOrder:
+    """Generic multi-leg debit order (e.g. buying back a short strangle to close).
+
+    A debit you pay is a POSITIVE price in the SDK's sign convention.
+    """
+    return NewOrder(
+        time_in_force=tif,
+        order_type=OrderType.LIMIT,
+        legs=[opt.build_leg(quantity, action) for opt, action in legs],
+        price=abs(debit),
+    )
+
+
 async def place(
     account: Account,
     session: Session,

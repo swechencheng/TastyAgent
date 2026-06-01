@@ -8,7 +8,7 @@ fetch is pluggable (lazy yfinance import) so tests don't hit the network.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
@@ -58,12 +58,41 @@ def compare(
     )
 
 
-def fetch_sp500_closes(start: date, end: date) -> list[tuple[date, float]]:
-    """Fetch daily SPY closes via yfinance. Lazy import so it's optional at runtime."""
-    import yfinance as yf  # noqa: PLC0415
+_YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/SPY"
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 tastyagent/0.1"
 
-    data = yf.download("SPY", start=start.isoformat(), end=end.isoformat(), progress=False)
-    closes: list[tuple[date, float]] = []
-    for ts, row in data.iterrows():
-        closes.append((ts.date(), float(row["Close"])))
-    return closes
+
+def _yahoo_chart(params: dict) -> list[tuple[date, float]]:
+    """Daily SPY closes from Yahoo's keyless chart API. SPY proxies the S&P 500."""
+    import httpx  # noqa: PLC0415
+
+    resp = httpx.get(_YAHOO_URL, params=params, headers={"User-Agent": _UA}, timeout=20.0)
+    resp.raise_for_status()
+    result = resp.json()["chart"]["result"][0]
+    timestamps = result["timestamp"]
+    closes = result["indicators"]["quote"][0]["close"]
+    out: list[tuple[date, float]] = []
+    for ts, close in zip(timestamps, closes):
+        if close is None:
+            continue
+        out.append((datetime.utcfromtimestamp(ts).date(), float(close)))
+    return out
+
+
+def fetch_sp500_closes(start: date, end: date) -> list[tuple[date, float]]:
+    """Daily SPY closes between two dates. Best-effort: [] on any error."""
+    try:
+        p1 = int(datetime(start.year, start.month, start.day).timestamp())
+        p2 = int(datetime(end.year, end.month, end.day).timestamp())
+        return _yahoo_chart({"period1": p1, "period2": p2, "interval": "1d"})
+    except Exception:  # noqa: BLE001 - benchmark data is best-effort
+        return []
+
+
+def latest_sp500_close() -> float | None:
+    """Most recent SPY close (by range, so it's robust to the system clock). None if down."""
+    try:
+        data = _yahoo_chart({"range": "5d", "interval": "1d"})
+        return data[-1][1] if data else None
+    except Exception:  # noqa: BLE001
+        return None

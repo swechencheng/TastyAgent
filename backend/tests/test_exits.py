@@ -1,50 +1,76 @@
+from dataclasses import replace
+from datetime import date, timedelta
+
 from tastyagent.config import StrategyParams
-from tastyagent.models import Strategy
-from tastyagent.strategy.exits import ExitAction, evaluate_exit
+from tastyagent.models import OpenPosition, Strategy
+from tastyagent.strategy.exits import ExitAction, RollKind, evaluate_exit
 
-from .conftest import make_position
+P = StrategyParams()
+TODAY = date(2026, 3, 1)
 
-PARAMS = StrategyParams()
+
+def pos(*, entry_credit=250.0, cost=250.0, days_held=10, dte_remaining=40, delta=None):
+    return OpenPosition(
+        symbol="SPY",
+        strategy=Strategy.SHORT_STRANGLE,
+        legs=(),
+        entry_date=TODAY - timedelta(days=days_held),
+        entry_credit=entry_credit,
+        current_cost_to_close=cost,
+        buying_power_reduction=2000.0,
+        dte_remaining=dte_remaining,
+        as_of=TODAY,
+        current_max_short_delta=delta,
+    )
 
 
-def test_hold_when_no_trigger():
-    # 20% profit at day 10 (avg for 20% is 6 -> behind pace), far from DTE
-    pos = make_position(entry_credit=250.0, current_cost_to_close=200.0, days_held=10)
-    d = evaluate_exit(pos, PARAMS)
+def test_hold_when_nothing_triggers():
+    d = evaluate_exit(pos(cost=230.0, days_held=10, dte_remaining=40, delta=0.18), P)
     assert d.action is ExitAction.HOLD
 
 
-def test_dte_backstop_fires_first():
-    pos = make_position(current_cost_to_close=10.0, dte_remaining=21, days_held=30)
-    d = evaluate_exit(pos, PARAMS)
-    assert d.action is ExitAction.MANAGE_DTE
-
-
-def test_fifty_percent_target_closes():
-    pos = make_position(entry_credit=250.0, current_cost_to_close=125.0, days_held=30)
-    d = evaluate_exit(pos, PARAMS)
+def test_take_profit_at_fifty():
+    d = evaluate_exit(pos(cost=125.0, dte_remaining=40), P)
     assert d.action is ExitAction.CLOSE
     assert "max-profit" in d.reason
 
 
-def test_stop_loss_closes():
-    # cost to close = 3x credit -> profit_pct = (250-750)/250 = -2.0
-    pos = make_position(entry_credit=250.0, current_cost_to_close=750.0, days_held=5)
-    d = evaluate_exit(pos, PARAMS)
-    assert d.action is ExitAction.CLOSE
-    assert "stop" in d.reason
-
-
-def test_ahead_of_pace_closes_below_fifty():
-    # 40% profit at day 8 (avg 10) -> ahead-of-pace closes even though < 50%
-    pos = make_position(entry_credit=250.0, current_cost_to_close=150.0, days_held=8)
-    d = evaluate_exit(pos, PARAMS)
+def test_ahead_of_pace_closes():
+    d = evaluate_exit(pos(cost=150.0, days_held=8, dte_remaining=40), P)  # 40% by day 8
     assert d.action is ExitAction.CLOSE
     assert "ahead of pace" in d.reason
 
 
-def test_ahead_of_pace_does_not_fire_when_behind():
-    # 40% profit at day 12 (> avg 10), below 50% -> hold
-    pos = make_position(entry_credit=250.0, current_cost_to_close=150.0, days_held=12)
-    d = evaluate_exit(pos, PARAMS)
+def test_roll_out_at_21_dte():
+    d = evaluate_exit(pos(cost=200.0, dte_remaining=21, days_held=30), P)  # 20% profit, at DTE
+    assert d.action is ExitAction.ROLL
+    assert d.roll_kind is RollKind.OUT
+
+
+def test_profit_takes_precedence_over_dte():
+    d = evaluate_exit(pos(cost=125.0, dte_remaining=21), P)  # 50% AND at DTE -> take profit
+    assert d.action is ExitAction.CLOSE
+
+
+def test_roll_untested_when_tested():
+    d = evaluate_exit(pos(cost=300.0, dte_remaining=40, days_held=12, delta=0.35), P)  # losing, tested
+    assert d.action is ExitAction.ROLL
+    assert d.roll_kind is RollKind.UNTESTED
+
+
+def test_below_tested_threshold_holds():
+    d = evaluate_exit(pos(cost=300.0, dte_remaining=40, days_held=12, delta=0.20), P)
     assert d.action is ExitAction.HOLD
+
+
+def test_hard_stop_off_by_default():
+    # big loss but stop disabled and not tested -> hold (tastytrade default)
+    d = evaluate_exit(pos(entry_credit=250.0, cost=800.0, dte_remaining=40, delta=0.20), P)
+    assert d.action is ExitAction.HOLD
+
+
+def test_hard_stop_when_enabled():
+    params = replace(P, use_hard_stop=True)
+    d = evaluate_exit(pos(entry_credit=250.0, cost=800.0, dte_remaining=40, delta=0.20), params)
+    assert d.action is ExitAction.CLOSE
+    assert "stop" in d.reason

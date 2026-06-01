@@ -46,16 +46,20 @@ class StrategyParams:
     target_dte: int = 45
     max_short_leg_delta: float = 0.30  # abs delta cap on any short leg (~16-30 delta)
     target_short_delta: float = 0.16  # delta we aim for when choosing short strikes
+    spread_long_delta: float = 0.07  # delta for protective long wings (spreads / condors)
     # Liquidity filters
     max_bid_ask_width_pct: float = 0.10  # width / mid
     min_open_interest: int = 500
     min_daily_volume: int = 100
     earnings_blackout_days: int = 7  # avoid opening within N days of earnings
+    universe_top_n: int = 15  # only do chain/greeks work on the top-N highest-IVR names
 
-    # --- Exit backstops ---
+    # --- Exit / management ---
     take_profit_pct: float = 0.50  # manage winners at 50% of max profit
-    manage_dte: int = 21  # defend / roll / close at 21 DTE
-    stop_loss_multiple: float = 2.0  # close if loss reaches N x credit received
+    manage_dte: int = 21  # roll out at 21 DTE
+    tested_delta_threshold: float = 0.30  # short-leg |delta| that counts as "tested"
+    use_hard_stop: bool = False  # tastytrade leans on management, not stops; off by default
+    stop_loss_multiple: float = 2.0  # if use_hard_stop: close at N x credit loss
 
 
 @dataclass(frozen=True)

@@ -113,6 +113,27 @@ class Ledger:
         trade.exit_reason = reason
         self.s.commit()
 
+    def record_roll(
+        self, old_trade, new_candidate, contracts, exit_debit, reason, new_order_id
+    ) -> Trade:
+        """Close the old cycle (booking realized P/L) and open the rolled position.
+
+        Models a roll as close-old + open-new; the new trade is linked back via its
+        rationale and starts WORKING with the broker order id.
+        """
+        self.close_trade(old_trade, exit_debit=exit_debit, exit_reason=reason)
+        new = self._new_trade(
+            new_candidate,
+            contracts,
+            f"rolled from #{old_trade.id}: {reason}",
+            TradingMode(old_trade.mode),
+            TradeStatus.WORKING,
+            None,
+        )
+        new.broker_order_id = new_order_id
+        self.s.commit()
+        return new
+
     # --- queries ---
     def get(self, trade_id: int) -> Trade | None:
         return self.s.get(Trade, trade_id)

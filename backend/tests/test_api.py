@@ -69,6 +69,26 @@ def test_benchmark_empty_ok():
     assert j["strategy_return_pct"] == 0.0  # no equity snapshots seeded
 
 
+def test_benchmark_with_snapshots():
+    from datetime import datetime, timedelta, timezone
+
+    from tastyagent.db.models import EquitySnapshot
+
+    sf = shared_factory()
+    s = sf()
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    s.add(EquitySnapshot(ts=base, net_liq=1_000_000.0, sp500_close=500.0))
+    s.add(EquitySnapshot(ts=base + timedelta(days=1), net_liq=1_050_000.0, sp500_close=510.0))
+    s.commit()
+    client = TestClient(create_app(sf, Runtime(mode=TradingMode.SANDBOX)))
+
+    j = client.get("/api/benchmark").json()
+    assert round(j["strategy_return_pct"], 4) == 0.05  # 1.00M -> 1.05M
+    assert round(j["sp500_return_pct"], 4) == 0.02  # 500 -> 510
+    assert len(j["strategy_curve"]) == 2 and len(j["sp500_curve"]) == 2
+    assert j["sp500_curve"][0]["value"] == 1_000_000.0  # S&P rebased to start capital
+
+
 def test_mode_and_kill_switch():
     c = sandbox_client()
     assert c.post("/api/kill-switch", json={"engaged": True}).json()["kill_switch"] is True
