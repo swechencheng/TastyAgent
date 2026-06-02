@@ -1,0 +1,199 @@
+"use client";
+
+import useSWR, { useSWRConfig } from "swr";
+import { Bell, TrendingUp, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  approveTrade,
+  Benchmark,
+  fetcher,
+  Pnl,
+  rejectTrade,
+  Settings,
+  Trade,
+  ActivityItem,
+  fmtMoney0,
+  fmtMoneySigned,
+  fmtPctSigned,
+} from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import EquityChart from "@/components/EquityChart";
+import { BuyingPowerCard, Empty, ErrorNote, Kpi, Loading, PageHeader, num, pop, signClass } from "@/components/common";
+import { cn } from "@/lib/utils";
+
+const POLL = { refreshInterval: 8000 };
+
+export default function Overview({ goTo }: { goTo: (r: string) => void }) {
+  const { mutate } = useSWRConfig();
+  const pnl = useSWR<Pnl>("/api/pnl", fetcher, POLL);
+  const benchmark = useSWR<Benchmark>("/api/benchmark", fetcher, POLL);
+  const approvals = useSWR<Trade[]>("/api/approvals", fetcher, POLL);
+  const positions = useSWR<Trade[]>("/api/positions", fetcher, POLL);
+  const activity = useSWR<ActivityItem[]>("/api/activity", fetcher, POLL);
+  const settings = useSWR<Settings>("/api/settings", fetcher, POLL);
+
+  const refresh = () =>
+    ["/api/pnl", "/api/approvals", "/api/positions", "/api/activity", "/api/status"].forEach((k) => mutate(k));
+
+  if (pnl.error) return <ErrorNote msg="Could not reach the API. Is the backend running on :8000?" />;
+  if (!pnl.data) return <Loading />;
+
+  const p = pnl.data;
+  const aps = approvals.data || [];
+  const pos = positions.data || [];
+
+  const cap = settings.data?.working_capital ?? p.starting_capital;
+  const totalBpPct = Number(settings.data?.risk?.max_total_bp_pct ?? 0.4);
+  const total = cap * totalBpPct;
+  const used = pos.reduce((s, t) => s + (t.buying_power || 0), 0);
+
+  const onApprove = async (t: Trade) => {
+    try {
+      await approveTrade(t.id);
+      toast.success(`${t.symbol} ${t.strategy} approved — sending to broker`);
+      refresh();
+    } catch {
+      toast.error(`Could not approve ${t.symbol}`);
+    }
+  };
+  const onReject = async (t: Trade) => {
+    try {
+      await rejectTrade(t.id);
+      toast.error(`${t.symbol} rejected`);
+      refresh();
+    } catch {
+      toast.error(`Could not reject ${t.symbol}`);
+    }
+  };
+
+  return (
+    <div className="max-w-[1080px]">
+      <PageHeader title="Overview" />
+
+      <div className="mb-[18px] grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3.5">
+        <Kpi label="Total P/L" value={fmtMoneySigned(p.total_pnl)} delta={fmtPctSigned(p.profit_pct)} deltaTone={p.total_pnl >= 0 ? "up" : "down"} />
+        <Kpi label="Realized" value={fmtMoneySigned(p.realized_pnl)} delta="closed" deltaTone={p.realized_pnl >= 0 ? "up" : "down"} />
+        <Kpi label="Unrealized" value={fmtMoneySigned(p.unrealized_pnl)} delta="open" deltaTone={p.unrealized_pnl >= 0 ? "up" : "down"} />
+        <Kpi label="Win rate" value={p.win_rate == null ? "—" : `${Math.round(p.win_rate * 100)}%`} sub={`${p.wins}W / ${p.losses}L`} />
+        <Kpi label="Open / Closed" value={`${p.open_count} / ${p.closed_count}`} sub={`cap ${fmtMoney0(cap)}`} />
+        <BuyingPowerCard total={total} used={used} remaining={Math.max(0, total - used)} pctUsed={total > 0 ? (used / total) * 100 : 0} />
+      </div>
+
+      {aps.length > 0 && (
+        <Card className="mb-[18px] border-warn/40">
+          <CardHeader>
+            <CardTitle>
+              <Bell className="size-4" /> Needs attention · {aps.length} pending approval
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aps.map((t) => (
+              <div key={t.id} className="rounded-[10px] border border-border border-l-[3px] border-l-warn bg-surface-2 px-4 py-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[15px] font-semibold">
+                      {t.symbol} · {t.strategy}
+                    </div>
+                    <div className={cn("mt-0.5 text-xs text-muted-foreground", num)}>
+                      {t.contracts} contracts · credit {fmtMoney0(t.entry_credit)}
+                    </div>
+                  </div>
+                  <Badge variant="gain">PoP {pop(t.probability_of_profit)}</Badge>
+                </div>
+                <div className="my-3 text-[13px] leading-relaxed text-muted-foreground">{t.rationale}</div>
+                <div className="flex gap-2.5">
+                  <Button variant="approve" onClick={() => onApprove(t)}>Approve</Button>
+                  <Button variant="reject" onClick={() => onReject(t)}>Reject</Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mb-[18px]">
+        <CardHeader>
+          <CardTitle>
+            <TrendingUp className="size-4" /> Equity vs. S&amp;P 500
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {benchmark.data ? <EquityChart data={benchmark.data} /> : <Empty>Equity curve builds as the agent trades.</Empty>}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle>Open positions</CardTitle>
+            <button className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" onClick={() => goTo("positions")}>
+              View all <ArrowRight className="size-3.5" />
+            </button>
+          </CardHeader>
+          <CardContent>
+            {pos.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Symbol</TableHead>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead className="text-right">PoP</TableHead>
+                    <TableHead className="text-right">Unreal.</TableHead>
+                    <TableHead className="text-right">DTE</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pos.slice(0, 5).map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-semibold">{t.symbol}</TableCell>
+                      <TableCell className="text-muted-foreground">{t.strategy}</TableCell>
+                      <TableCell className={cn("text-right", num)}>{pop(t.probability_of_profit)}</TableCell>
+                      <TableCell className={cn("text-right", num, signClass(t.unrealized_pnl))}>{fmtMoneySigned(t.unrealized_pnl)}</TableCell>
+                      <TableCell className={cn("text-right", num)}>{t.dte_at_entry}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Empty>No open positions.</Empty>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle>Recent activity</CardTitle>
+            <button className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground" onClick={() => goTo("activity")}>
+              Log <ArrowRight className="size-3.5" />
+            </button>
+          </CardHeader>
+          <CardContent>
+            {(activity.data || []).length > 0 ? (
+              <div className="flex flex-col gap-3.5">
+                {(activity.data || []).slice(0, 3).map((a) => (
+                  <div key={a.id} className="flex gap-3.5">
+                    <div className={cn("min-w-[120px] whitespace-nowrap text-xs text-text-faint", num)}>
+                      {new Date(a.created_at).toLocaleString()}
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-medium">
+                        +{a.placed} placed · {a.considered} considered · {a.rejected} rejected
+                      </div>
+                      <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{a.commentary}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty>No decision cycles yet. Run one from the sidebar.</Empty>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

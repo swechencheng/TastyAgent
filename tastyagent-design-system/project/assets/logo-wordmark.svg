@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" font-family="Inter, sans-serif">
+  <rect width="320" height="64" fill="#000000"></rect>
+  <text x="20" y="42" font-size="32" font-weight="700" letter-spacing="-0.6" fill="#FFFFFF">Tasty<tspan fill="#E4002B">Agent</tspan></text>
+</svg>

@@ -1,0 +1,40 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; color: var(--text); }
+  .group { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
+  /* segmented */
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .seg button { font-family: var(--font-ui); font-size: 13px; border: none; background: transparent; color: var(--text-muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+  .seg button.active { background: var(--brand); color: #fff; font-weight: 500; }
+  /* toggle */
+  .switch { width: 42px; height: 24px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); position: relative; }
+  .switch.on { background: var(--gain); border-color: var(--gain); }
+  .knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left 200ms; }
+  .switch.on .knob { left: 20px; }
+  .lab { font-size: 12px; color: var(--text-muted); }
+  .cell { display: flex; align-items: center; gap: 10px; }
+</style>
+</head>
+<body>
+  <div class="group">
+    <div>
+      <div class="lab" style="margin-bottom:8px">Trading mode (segmented)</div>
+      <div class="seg">
+        <button class="active">Sandbox</button>
+        <button>Live-approval</button>
+        <button>Live-auto</button>
+      </div>
+    </div>
+    <div>
+      <div class="lab" style="margin-bottom:8px">Toggle</div>
+      <div class="cell"><div class="switch on"><div class="knob"></div></div><span class="lab">on</span></div>
+      <div class="cell" style="margin-top:8px"><div class="switch"><div class="knob"></div></div><span class="lab">off</span></div>
+    </div>
+  </div>
+</body>
+</html>

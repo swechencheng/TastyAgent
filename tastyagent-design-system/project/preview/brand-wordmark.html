@@ -1,0 +1,33 @@
+<!-- @dsCard group="Brand" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 26px; }
+  .stack { display: flex; flex-direction: column; gap: 22px; }
+  .wm { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+  .wm span { color: var(--brand); }
+  .row { display: flex; align-items: center; gap: 26px; }
+  .on-red { background: var(--brand); padding: 10px 16px; border-radius: 10px; }
+  .on-red .wm { color: #fff; }
+  .on-red .wm span { color: #fff; }
+  .small { font-size: 16px; }
+  .tag { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="row">
+      <div class="wm">Tasty<span>Agent</span></div>
+      <span class="tag">primary wordmark · Inter 700</span>
+    </div>
+    <div class="row">
+      <div class="on-red"><div class="wm small">Tasty<span>Agent</span></div></div>
+      <div class="wm small">Tasty<span>Agent</span></div>
+      <span class="tag">on-brand · compact</span>
+    </div>
+  </div>
+</body>
+</html>

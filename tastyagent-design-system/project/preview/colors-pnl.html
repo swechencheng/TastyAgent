@@ -1,0 +1,29 @@
+<!-- @dsCard group="Colors" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 20px; }
+  .row { display: flex; gap: 12px; }
+  .sw { flex: 1; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+  .chip { height: 56px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 600; font-size: 15px; }
+  .meta { padding: 8px 10px; }
+  .name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .hex { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .pair { display: flex; gap: 10px; margin-top: 12px; }
+  .tint { flex: 1; border-radius: 8px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:#0A0A0B; color:#16C784">+$420.18</div><div class="meta"><div class="name">gain</div><div class="hex">#16C784</div></div></div>
+    <div class="sw"><div class="chip" style="background:#0A0A0B; color:#FF4D6A">−$112.40</div><div class="meta"><div class="name">loss</div><div class="hex">#FF4D6A</div></div></div>
+  </div>
+  <div class="pair">
+    <div class="tint" style="background:#16C78422; color:#16C784">gain-soft #16C78422</div>
+    <div class="tint" style="background:#FF4D6A22; color:#FF4D6A">loss-soft #FF4D6A22</div>
+  </div>
+</body>
+</html>

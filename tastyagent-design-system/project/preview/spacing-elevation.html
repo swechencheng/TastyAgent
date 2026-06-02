@@ -1,0 +1,28 @@
+<!-- @dsCard group="Spacing" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; color: var(--text); }
+  .row { display: flex; gap: 16px; }
+  .card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+  .card.nested { background: var(--surface-2); }
+  .t { font-size: 12px; font-weight: 600; }
+  .d { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="card">
+      <div class="t">Card · surface</div>
+      <div class="d">#141417 + 1px #2A2A30<br>radius 12 · inset sheen</div>
+    </div>
+    <div class="card nested">
+      <div class="t">Nested · surface-2</div>
+      <div class="d">#1C1C21 + 1px #2A2A30<br>inputs · hover rows</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+  tr:hover td { background: var(--surface-2); }
+  .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .sym { font-weight: 600; }
+  .strat { color: var(--text-muted); }
+  .gain { color: var(--gain); }
+  .loss { color: var(--loss); }
+</style>
+</head>
+<body>
+  <table>
+    <thead>
+      <tr><th>Symbol</th><th>Strategy</th><th class="num">Qty</th><th class="num">PoP</th><th class="num">Unreal.</th><th class="num">DTE</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="sym">NVDA</td><td class="strat">Strangle</td><td class="num">2</td><td class="num">68%</td><td class="num gain">+$84.20</td><td class="num">41</td></tr>
+      <tr><td class="sym">AMD</td><td class="strat">Put credit spread</td><td class="num">3</td><td class="num">71%</td><td class="num gain">+$31.05</td><td class="num">38</td></tr>
+      <tr><td class="sym">TSLA</td><td class="strat">Iron condor</td><td class="num">1</td><td class="num">64%</td><td class="num loss">−$52.10</td><td class="num">22</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

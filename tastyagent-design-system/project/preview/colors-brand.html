@@ -1,0 +1,28 @@
+<!-- @dsCard group="Colors" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 20px; }
+  .row { display: flex; gap: 12px; align-items: stretch; }
+  .sw { flex: 1; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+  .chip { height: 64px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+  .meta { padding: 8px 10px; }
+  .name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .hex { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .note { font-size: 11px; color: var(--text-faint); margin-top: 14px; }
+  .note b { color: var(--brand); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:#E4002B; color:#fff">CTA</div><div class="meta"><div class="name">brand</div><div class="hex">#E4002B</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FF1F47; color:#fff">hover</div><div class="meta"><div class="name">brand-hover</div><div class="hex">#FF1F47</div></div></div>
+    <div class="sw"><div class="chip" style="background:#C20025; color:#fff">press</div><div class="meta"><div class="name">brand-press</div><div class="hex">#C20025</div></div></div>
+    <div class="sw"><div class="chip" style="background:#E4002B22; color:#FF1F47">soft</div><div class="meta"><div class="name">brand-soft</div><div class="hex">#E4002B22</div></div></div>
+  </div>
+  <div class="note">tastytrade red. Red <b>fills</b> = actions/danger. Red <b>text</b> = negative P/L (see semantic).</div>
+</body>
+</html>
