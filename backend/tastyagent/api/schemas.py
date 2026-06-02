@@ -121,3 +121,38 @@ class TastytradeWatchlist(BaseModel):
     name: str
     group: str | None = None
     symbols: list[str]
+
+
+class SchedulerConfig(BaseModel):
+    interval_seconds: float
+    market_hours_only: bool
+
+
+class SettingsOut(BaseModel):
+    mode: str
+    kill_switch: bool
+    working_capital: float
+    scheduler: SchedulerConfig
+    strategy: dict  # StrategyParams fields
+    risk: dict  # RiskLimits fields (excluding kill_switch, which is its own toggle)
+
+
+class SettingsUpdate(BaseModel):
+    """Partial update — send only the groups/fields that changed."""
+
+    working_capital: float | None = None
+    scheduler_interval_seconds: float | None = None
+    scheduler_market_hours_only: bool | None = None
+    strategy: dict | None = None
+    risk: dict | None = None
+
+
+class ActivityItem(BaseModel):
+    id: int
+    created_at: datetime
+    mode: str
+    commentary: str
+    considered: int
+    placed: int
+    rejected: int
+    symbols: list[str]

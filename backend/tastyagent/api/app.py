@@ -7,6 +7,7 @@ DB). A module-level `app` is also built from settings for `uvicorn`.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict, fields, replace
 from datetime import date, datetime
 from typing import Iterator
 
@@ -16,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import TradingMode
-from ..db.models import EquitySnapshot
+from ..db.models import Decision, EquitySnapshot, TradeStatus
 from ..decision.context import DEFAULT_WATCHLIST
 from ..execution.executor import Executor
 from ..portfolio import benchmark as bench
@@ -27,12 +28,16 @@ from ..scheduler import is_market_open
 from .runtime import Runtime
 from .schemas import (
     ActionResult,
+    ActivityItem,
     BenchmarkOut,
     BenchmarkPoint,
     KillSwitchRequest,
     ModeRequest,
     PnLOut,
     RankedSymbol,
+    SchedulerConfig,
+    SettingsOut,
+    SettingsUpdate,
     StatusOut,
     TastytradeWatchlist,
     ToggleRequest,
@@ -41,6 +46,23 @@ from .schemas import (
     WatchlistImport,
     WatchlistItem,
 )
+
+
+def _coerce(typ: str, value):
+    if typ == "int":
+        return int(value)
+    if typ == "float":
+        return float(value)
+    if typ == "bool":
+        return bool(value)
+    return value
+
+
+def _apply_updates(obj, updates: dict):
+    """Apply a partial dict of updates to a frozen dataclass, ignoring unknown keys."""
+    types = {f.name: f.type for f in fields(obj)}
+    clean = {k: _coerce(types[k], v) for k, v in updates.items() if k in types}
+    return replace(obj, **clean)
 
 
 def create_app(
@@ -224,8 +246,8 @@ def create_app(
             app.state.scheduler_task = asyncio.create_task(
                 run_loop(
                     _tick,
-                    interval_seconds=float(body.get("interval_seconds", 300)),
-                    market_hours_only=bool(body.get("market_hours_only", True)),
+                    interval_seconds=float(body.get("interval_seconds", rt.scheduler_interval_seconds)),
+                    market_hours_only=bool(body.get("market_hours_only", rt.scheduler_market_hours_only)),
                     stop=stop,
                 )
             )
@@ -306,6 +328,64 @@ def create_app(
 
         wls = await get_public_watchlists(app.state.metrics_session)
         return [TastytradeWatchlist(**w) for w in wls]
+
+    # --- settings (manage the agent's strategy / risk / capital / scheduler) ---
+    def _settings_out(rt: Runtime) -> SettingsOut:
+        risk = asdict(rt.risk)
+        risk.pop("kill_switch", None)  # kill switch is its own dedicated toggle
+        return SettingsOut(
+            mode=rt.mode.value,
+            kill_switch=rt.kill_switch,
+            working_capital=rt.starting_capital,
+            scheduler=SchedulerConfig(
+                interval_seconds=rt.scheduler_interval_seconds,
+                market_hours_only=rt.scheduler_market_hours_only,
+            ),
+            strategy=asdict(rt.strategy),
+            risk=risk,
+        )
+
+    @app.get("/api/settings", response_model=SettingsOut)
+    def get_settings(rt: Runtime = Depends(get_runtime)) -> SettingsOut:
+        return _settings_out(rt)
+
+    @app.put("/api/settings", response_model=SettingsOut)
+    def put_settings(req: SettingsUpdate, rt: Runtime = Depends(get_runtime)) -> SettingsOut:
+        if req.working_capital is not None:
+            if req.working_capital <= 0:
+                raise HTTPException(400, "working_capital must be > 0")
+            rt.starting_capital = req.working_capital
+        if req.scheduler_interval_seconds is not None:
+            rt.scheduler_interval_seconds = max(30.0, req.scheduler_interval_seconds)
+        if req.scheduler_market_hours_only is not None:
+            rt.scheduler_market_hours_only = req.scheduler_market_hours_only
+        if req.strategy:
+            rt.strategy = _apply_updates(rt.strategy, req.strategy)
+        if req.risk:
+            rt.risk = _apply_updates(rt.risk, {k: v for k, v in req.risk.items() if k != "kill_switch"})
+        return _settings_out(rt)
+
+    # --- activity (recent decision cycles + Claude's rationale) ---
+    @app.get("/api/activity", response_model=list[ActivityItem])
+    def activity(limit: int = 25, s: Session = Depends(get_session)) -> list[ActivityItem]:
+        decisions = list(
+            s.scalars(select(Decision).order_by(Decision.created_at.desc()).limit(limit))
+        )
+        items: list[ActivityItem] = []
+        for d in decisions:
+            placed = [
+                t for t in d.trades
+                if t.status in (TradeStatus.WORKING, TradeStatus.OPEN, TradeStatus.PENDING_APPROVAL)
+            ]
+            rejected = [t for t in d.trades if t.status is TradeStatus.REJECTED]
+            items.append(
+                ActivityItem(
+                    id=d.id, created_at=d.created_at, mode=d.mode, commentary=d.commentary,
+                    considered=d.considered, placed=len(placed), rejected=len(rejected),
+                    symbols=sorted({t.symbol for t in placed}),
+                )
+            )
+        return items
 
     return app
 
