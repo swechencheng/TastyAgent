@@ -1,0 +1,39 @@
+<!-- @dsCard group="Brand" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; color: var(--text); }
+  .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 16px; }
+  .ic { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .ic svg { width: 22px; height: 22px; stroke-width: 1.5; color: var(--text); }
+  .ic span { font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); text-align: center; }
+  .note { font-size: 11px; color: var(--text-faint); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="ic"><i data-lucide="layout-dashboard"></i><span>overview</span></div>
+    <div class="ic"><i data-lucide="layers"></i><span>positions</span></div>
+    <div class="ic"><i data-lucide="list-checks"></i><span>watchlist</span></div>
+    <div class="ic"><i data-lucide="activity"></i><span>activity</span></div>
+    <div class="ic"><i data-lucide="settings"></i><span>settings</span></div>
+    <div class="ic"><i data-lucide="play"></i><span>run</span></div>
+    <div class="ic"><i data-lucide="octagon-x"></i><span>kill</span></div>
+    <div class="ic"><i data-lucide="trending-up"></i><span>gain</span></div>
+    <div class="ic"><i data-lucide="trending-down"></i><span>loss</span></div>
+    <div class="ic"><i data-lucide="check"></i><span>approve</span></div>
+    <div class="ic"><i data-lucide="x"></i><span>reject</span></div>
+    <div class="ic"><i data-lucide="flame"></i><span>iv rank</span></div>
+    <div class="ic"><i data-lucide="clock"></i><span>dte</span></div>
+    <div class="ic"><i data-lucide="shield"></i><span>risk</span></div>
+    <div class="ic"><i data-lucide="bell"></i><span>alert</span></div>
+    <div class="ic"><i data-lucide="plus"></i><span>add</span></div>
+  </div>
+  <div class="note">Lucide · 20–24px · 1.5px stroke · no emoji</div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

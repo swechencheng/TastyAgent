@@ -1,221 +1,91 @@
-:root {
-  --bg: #0b0f17;
-  --panel: #131a26;
-  --panel-2: #1a2433;
-  --border: #243044;
-  --text: #e6edf3;
-  --muted: #8b9bb4;
-  --green: #2ecc71;
-  --red: #e74c3c;
-  --accent: #4c9aff;
-  --amber: #f0a500;
-}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-* {
-  box-sizing: border-box;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
+/* ============================================================================
+   TastyAgent design tokens — tastytrade black / white / red. Dark only.
+   Expressed in the shadcn/ui CSS-variable convention (HSL channels).
+   ========================================================================== */
+@layer base {
+  :root {
+    --background: 240 6% 4%;        /* #0A0A0B canvas              */
+    --foreground: 0 0% 100%;        /* #FFFFFF                     */
+    --card: 240 7% 8%;              /* #141417 surface             */
+    --card-foreground: 0 0% 100%;
+    --popover: 240 7% 8%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 349 100% 45%;        /* #E4002B tastytrade red      */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 8% 12%;        /* #1C1C21 surface-2           */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 8% 12%;
+    --muted-foreground: 240 5% 62%; /* #9A9AA4                     */
+    --accent: 240 8% 12%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 349 100% 45%;    /* danger fills = brand red    */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 7% 18%;           /* #2A2A30 hairline            */
+    --input: 240 7% 18%;
+    --ring: 349 100% 45%;
+    --radius: 0.5rem;               /* 8px inputs/buttons; cards rounded-xl=12px */
 
-a {
-  color: var(--accent);
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-header.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
-  margin-bottom: 20px;
-}
-
-.brand {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-
-.brand span {
-  color: var(--accent);
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pill {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--muted);
-}
-
-.pill.open {
-  color: var(--green);
-  border-color: var(--green);
-}
-.pill.closed {
-  color: var(--amber);
-  border-color: var(--amber);
-}
-
-select,
-button {
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 12px;
-  cursor: pointer;
-}
-button:hover {
-  border-color: var(--accent);
-}
-
-button.kill {
-  border-color: var(--red);
-  color: var(--red);
-}
-button.kill.engaged {
-  background: var(--red);
-  color: white;
-}
-button.auto.engaged {
-  background: var(--green);
-  border-color: var(--green);
-  color: #06210f;
-  font-weight: 600;
-}
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.grid {
-  display: grid;
-  gap: 16px;
-}
-.cards {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-}
-.card .label {
-  font-size: 12px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.card .value {
-  font-size: 24px;
-  font-weight: 700;
-  margin-top: 6px;
-}
-.value.pos {
-  color: var(--green);
-}
-.value.neg {
-  color: var(--red);
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-top: 20px;
-}
-.panel h2 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-th,
-td {
-  text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-}
-td.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.rationale {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-@media (max-width: 800px) {
-  .two-col {
-    grid-template-columns: 1fr;
+    /* TastyAgent semantic extensions */
+    --surface: 240 7% 8%;
+    --surface-2: 240 8% 12%;
+    --border-strong: 240 8% 24%;    /* #3A3A42                     */
+    --text-faint: 240 5% 44%;       /* #6B6B74                     */
+    --brand: 349 100% 45%;
+    --brand-hover: 349 100% 56%;    /* #FF1F47                     */
+    --gain: 157 67% 43%;            /* #16C784                     */
+    --loss: 350 100% 65%;           /* #FF4D6A                     */
+    --warn: 41 100% 47%;            /* #F0A500                     */
+    --info: 213 100% 65%;           /* #4C9AFF                     */
   }
 }
 
-.empty {
-  color: var(--muted);
-  font-size: 14px;
-  padding: 12px 0;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  /* tabular figures for all monospace numbers */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
 }
 
-.approve {
-  border-color: var(--green);
-  color: var(--green);
+@layer components {
+  /* Soft 13%-alpha tints used behind chips and the equity area */
+  .bg-gain-soft { background-color: hsl(var(--gain) / 0.13); }
+  .bg-loss-soft { background-color: hsl(var(--loss) / 0.13); }
+  .bg-warn-soft { background-color: hsl(var(--warn) / 0.13); }
+  .bg-brand-soft { background-color: hsl(var(--brand) / 0.13); }
+
+  /* The one piece of perpetual motion — the live "●" pulse */
+  .live-dot { position: relative; }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    background: hsl(var(--gain));
+    opacity: 0.4;
+    animation: ta-pulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @keyframes ta-pulse {
+    0% { transform: scale(.6); opacity: .5; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
 }
-.reject {
-  border-color: var(--red);
-  color: var(--red);
-}
-.tag {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  color: var(--muted);
+
+@media (prefers-reduced-motion: reduce) {
+  *, .live-dot::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

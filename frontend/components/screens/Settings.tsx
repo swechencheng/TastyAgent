@@ -1,0 +1,336 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import useSWR, { useSWRConfig } from "swr";
+import { Bot, Check, HandCoins, Shield, SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
+
+import { fetcher, putSettings, Settings as SettingsT, SettingsUpdate, fmtMoney0 } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ErrorNote, Loading, PageHeader } from "@/components/common";
+import { cn } from "@/lib/utils";
+
+type Form = {
+  working_capital: number;
+  intervalMin: number;
+  marketHours: boolean;
+  minIvr: number;
+  dteMin: number;
+  dteTarget: number;
+  dteMax: number;
+  shortDelta: number;
+  topN: number;
+  takeProfit: number;
+  manageDte: number;
+  hardStop: boolean;
+  stopMult: number;
+  bpPerTrade: number;
+  bpTotal: number;
+  maxPos: number;
+  maxPerSym: number;
+  dailyHalt: number;
+};
+
+const n = (v: unknown, d = 0) => (typeof v === "number" ? v : d);
+
+function fromSettings(s: SettingsT): Form {
+  const st = s.strategy;
+  const rk = s.risk;
+  return {
+    working_capital: s.working_capital,
+    intervalMin: Math.round(s.scheduler.interval_seconds / 60),
+    marketHours: !!s.scheduler.market_hours_only,
+    minIvr: Math.round(n(st.min_iv_rank, 0.3) * 100),
+    dteMin: n(st.min_dte, 30),
+    dteTarget: n(st.target_dte, 45),
+    dteMax: n(st.max_dte, 55),
+    shortDelta: Math.round(n(st.target_short_delta, 0.16) * 100),
+    topN: n(st.universe_top_n, 15),
+    takeProfit: Math.round(n(st.take_profit_pct, 0.5) * 100),
+    manageDte: n(st.manage_dte, 21),
+    hardStop: !!st.use_hard_stop,
+    stopMult: n(st.stop_loss_multiple, 2),
+    bpPerTrade: Math.round(n(rk.max_trade_bp_pct, 0.05) * 100),
+    bpTotal: Math.round(n(rk.max_total_bp_pct, 0.4) * 100),
+    maxPos: n(rk.max_positions, 15),
+    maxPerSym: n(rk.max_positions_per_symbol, 2),
+    dailyHalt: Math.round(n(rk.max_daily_loss_pct, 0.03) * 100),
+  };
+}
+
+function toPayload(f: Form): SettingsUpdate {
+  return {
+    working_capital: f.working_capital,
+    scheduler_interval_seconds: f.intervalMin * 60,
+    scheduler_market_hours_only: f.marketHours,
+    strategy: {
+      min_iv_rank: f.minIvr / 100,
+      min_dte: f.dteMin,
+      target_dte: f.dteTarget,
+      max_dte: f.dteMax,
+      target_short_delta: f.shortDelta / 100,
+      universe_top_n: f.topN,
+      take_profit_pct: f.takeProfit / 100,
+      manage_dte: f.manageDte,
+      use_hard_stop: f.hardStop,
+      stop_loss_multiple: f.stopMult,
+    },
+    risk: {
+      max_trade_bp_pct: f.bpPerTrade / 100,
+      max_total_bp_pct: f.bpTotal / 100,
+      max_positions: f.maxPos,
+      max_positions_per_symbol: f.maxPerSym,
+      max_daily_loss_pct: f.dailyHalt / 100,
+    },
+  };
+}
+
+const TABS = [
+  { id: "agent", label: "Agent", icon: Bot },
+  { id: "strategy", label: "Strategy", icon: SlidersHorizontal },
+  { id: "management", label: "Management", icon: HandCoins },
+  { id: "risk", label: "Risk limits", icon: Shield },
+];
+
+function Field({
+  label,
+  help,
+  unit,
+  derived,
+  children,
+}: {
+  label: string;
+  help?: string;
+  unit?: string;
+  derived?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-b border-border py-3.5 last:border-0">
+      <div className="flex items-center justify-between gap-6">
+        <div>
+          <div className="text-sm font-medium">{label}</div>
+          {help && <div className="mt-0.5 max-w-[520px] text-xs leading-snug text-muted-foreground">{help}</div>}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {children}
+          {unit && <span className="font-mono text-xs text-text-faint">{unit}</span>}
+        </div>
+      </div>
+      {derived && (
+        <div className="mt-2 inline-block rounded-md bg-gain-soft px-2.5 py-1 font-mono text-xs text-gain">{derived}</div>
+      )}
+    </div>
+  );
+}
+
+function NInput({ value, onChange, w = 88 }: { value: number; onChange: (v: number) => void; w?: number }) {
+  return (
+    <Input
+      type="number"
+      value={Number.isFinite(value) ? value : 0}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="h-9 font-mono"
+      style={{ width: w }}
+    />
+  );
+}
+
+export default function Settings({
+  mode,
+  onModeChange,
+}: {
+  mode: string;
+  onModeChange: (m: string) => void;
+}) {
+  const { mutate } = useSWRConfig();
+  const { data, error } = useSWR<SettingsT>("/api/settings", fetcher);
+  const [tab, setTab] = useState("agent");
+  const [form, setForm] = useState<Form | null>(null);
+  const [snap, setSnap] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (data && form === null) {
+      const f = fromSettings(data);
+      setForm(f);
+      setSnap(JSON.stringify(f));
+    }
+  }, [data, form]);
+
+  if (error) return <ErrorNote msg="Could not load settings." />;
+  if (!data || !form) return <Loading />;
+
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((p) => (p ? { ...p, [k]: v } : p));
+  const dirty = JSON.stringify(form) !== snap;
+
+  const save = async () => {
+    if (form.working_capital <= 0) {
+      toast.error("Working capital must be greater than 0");
+      return;
+    }
+    setSaving(true);
+    try {
+      const next = await putSettings(toPayload(form));
+      mutate("/api/settings", next, false);
+      mutate("/api/status");
+      const f = fromSettings(next);
+      setForm(f);
+      setSnap(JSON.stringify(f));
+      toast.success("Settings saved");
+    } catch {
+      toast.error("Could not save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const SaveBar = () =>
+    dirty ? (
+      <Button size="sm" onClick={save} disabled={saving}>
+        {saving ? "Saving…" : "Save changes"}
+      </Button>
+    ) : (
+      <span className="inline-flex items-center gap-1.5 text-xs text-text-faint">
+        <Check className="size-3.5 text-gain" /> Saved
+      </span>
+    );
+
+  return (
+    <div className="max-w-[1080px]">
+      <PageHeader title="Settings">
+        Manage the agent end-to-end. Switching to a live mode requires a typed confirm; changes apply on the next cycle.
+      </PageHeader>
+
+      <Tabs value={tab} onValueChange={setTab} className="mb-[18px]">
+        <TabsList className="flex-wrap">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id}>
+              <t.icon className="size-4" /> {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {tab === "agent" && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle><Bot className="size-4" /> Agent</CardTitle>
+            <SaveBar />
+          </CardHeader>
+          <CardContent>
+            <Field label="Trading mode" help="Switching to a live mode requires a typed confirm in the dialog.">
+              <Tabs value={mode} onValueChange={onModeChange}>
+                <TabsList>
+                  <TabsTrigger value="sandbox">Sandbox</TabsTrigger>
+                  <TabsTrigger value="live_approval">Live-approval</TabsTrigger>
+                  <TabsTrigger value="live_auto">Live-auto</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </Field>
+            <Field
+              label="Working capital"
+              help="Capital the agent sizes positions against (not the broker balance)."
+              unit="$"
+              derived={`Per-trade BP cap = ${form.bpPerTrade}% × ${fmtMoney0(form.working_capital)} = ${fmtMoney0(Math.round((form.working_capital * form.bpPerTrade) / 100))}`}
+            >
+              <NInput value={form.working_capital} onChange={(v) => set("working_capital", v)} w={104} />
+            </Field>
+            <Field label="Cycle interval" help="How often the loop ticks while Auto is on (min 30s)." unit="min">
+              <NInput value={form.intervalMin} onChange={(v) => set("intervalMin", v)} />
+            </Field>
+            <Field label="Market hours only" help="When on, the scheduler won't fire outside regular hours.">
+              <Switch checked={form.marketHours} onCheckedChange={(v) => set("marketHours", v)} aria-label="Market hours only" />
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "strategy" && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle><SlidersHorizontal className="size-4" /> Strategy params</CardTitle>
+            <SaveBar />
+          </CardHeader>
+          <CardContent>
+            <Field label="Min IV rank" help="Only sell premium when IV rank is at least this high." unit="IVR">
+              <NInput value={form.minIvr} onChange={(v) => set("minIvr", v)} />
+            </Field>
+            <Field label="DTE window (min / target / max)" help="Days-to-expiration range for new positions.">
+              <span className="flex gap-1.5">
+                <NInput value={form.dteMin} onChange={(v) => set("dteMin", v)} w={64} />
+                <NInput value={form.dteTarget} onChange={(v) => set("dteTarget", v)} w={64} />
+                <NInput value={form.dteMax} onChange={(v) => set("dteMax", v)} w={64} />
+              </span>
+            </Field>
+            <Field label="Target short delta" help="Strike selection for short legs (≈16Δ ≈ 68% PoP)." unit="Δ">
+              <NInput value={form.shortDelta} onChange={(v) => set("shortDelta", v)} />
+            </Field>
+            <Field label="Universe top-N" help="How many highest-IVR names get chain work each cycle." unit="names">
+              <NInput value={form.topN} onChange={(v) => set("topN", v)} />
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "management" && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle><HandCoins className="size-4" /> Management / Exits</CardTitle>
+            <SaveBar />
+          </CardHeader>
+          <CardContent>
+            <Field label="Take-profit" help="Close a winner at this % of max profit." unit="%">
+              <NInput value={form.takeProfit} onChange={(v) => set("takeProfit", v)} />
+            </Field>
+            <Field label="Manage at DTE" help="Roll out / defend when a position reaches this DTE." unit="DTE">
+              <NInput value={form.manageDte} onChange={(v) => set("manageDte", v)} />
+            </Field>
+            <Field label="Use hard stop" help="Off by default — tastytrade manages rather than stops out.">
+              <Switch checked={form.hardStop} onCheckedChange={(v) => set("hardStop", v)} aria-label="Hard stop" />
+            </Field>
+            <Field label="Stop-loss multiple" help="Stop at this multiple of credit received (when hard stop is on)." unit="×">
+              <NInput value={form.stopMult} onChange={(v) => set("stopMult", v)} />
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "risk" && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle><Shield className="size-4" /> Risk limits</CardTitle>
+            <SaveBar />
+          </CardHeader>
+          <CardContent>
+            <Field
+              label="Max per-trade BP"
+              help="Buying-power cap for any single trade."
+              unit="%"
+              derived={`= ${fmtMoney0(Math.round((form.working_capital * form.bpPerTrade) / 100))} at ${fmtMoney0(form.working_capital)} capital`}
+            >
+              <NInput value={form.bpPerTrade} onChange={(v) => set("bpPerTrade", v)} />
+            </Field>
+            <Field label="Max total BP" help="Portfolio-wide buying-power cap." unit="%">
+              <NInput value={form.bpTotal} onChange={(v) => set("bpTotal", v)} />
+            </Field>
+            <Field label="Max positions" help="Hard cap on concurrent open positions." unit="open">
+              <NInput value={form.maxPos} onChange={(v) => set("maxPos", v)} />
+            </Field>
+            <Field label="Max positions / symbol" help="Concentration cap per underlying." unit="per sym">
+              <NInput value={form.maxPerSym} onChange={(v) => set("maxPerSym", v)} />
+            </Field>
+            <Field label="Daily-loss halt" help="Halt all new entries if daily loss exceeds this." unit="%">
+              <NInput value={form.dailyHalt} onChange={(v) => set("dailyHalt", v)} />
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+      <p className={cn("mt-3 text-xs text-text-faint")}>Settings are held in memory and reset on server restart.</p>
+    </div>
+  );
+}

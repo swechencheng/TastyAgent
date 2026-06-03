@@ -1,0 +1,39 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 14px; }
+  .pill { font-size: 12px; font-weight: 500; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .open { color: var(--gain); border-color: color-mix(in srgb, var(--gain) 50%, transparent); }
+  .open .dot { background: var(--gain); }
+  .closed { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+  .mode { color: var(--text); background: var(--surface-2); }
+  .win { color: var(--gain); background: var(--gain-soft); border-color: transparent; }
+  .loss { color: var(--loss); background: var(--loss-soft); border-color: transparent; }
+  .src { font-family: var(--font-mono); font-size: 11px; }
+  .ivr { font-family: var(--font-mono); font-weight: 600; color: var(--text); border: none; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <span class="pill open"><span class="dot"></span>Market Open</span>
+    <span class="pill closed">Market Closed</span>
+    <span class="pill mode">sandbox</span>
+    <span class="pill win">WIN</span>
+    <span class="pill loss">LOSS</span>
+  </div>
+  <div class="row">
+    <span class="pill src">tt:High&nbsp;Options&nbsp;Volume</span>
+    <span class="pill src">custom</span>
+    <span class="pill ivr" style="background:#E4002B">IVR 82</span>
+    <span class="pill ivr" style="background:#E4002B66">IVR 41</span>
+    <span class="pill ivr" style="background:#E4002B22; color:var(--text-muted)">IVR 12</span>
+  </div>
+</body>
+</html>

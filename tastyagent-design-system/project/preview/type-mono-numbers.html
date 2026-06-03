@@ -1,0 +1,23 @@
+<!-- @dsCard group="Type" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; color: var(--text); }
+  .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .kpi { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .note { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div><div class="lbl">Total P/L</div><div class="kpi ds-gain">+$420.18</div></div>
+    <div><div class="lbl">Profit %</div><div class="kpi ds-gain">+4.20%</div></div>
+    <div><div class="lbl">Unrealized</div><div class="kpi ds-loss">−$112.40</div></div>
+  </div>
+  <div class="note">JetBrains Mono · tabular-nums — figures align in columns. Big KPI = 28–34px.</div>
+</body>
+</html>

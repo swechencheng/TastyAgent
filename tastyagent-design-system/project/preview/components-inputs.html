@@ -1,0 +1,33 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; color: var(--text); }
+  .field { margin-bottom: 16px; }
+  .lbl { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+  .help { font-size: 11px; color: var(--text-faint); margin-top: 5px; }
+  input[type=text], input[type=number] { font-family: var(--font-mono); font-size: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); width: 160px; }
+  input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+  .row { display: flex; gap: 24px; align-items: flex-start; }
+  .slider { width: 220px; accent-color: var(--brand); }
+  .derived { font-family: var(--font-mono); font-size: 12px; color: var(--gain); margin-top: 6px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="field">
+      <label class="lbl">Add ticker</label>
+      <input type="text" value="NFLX" placeholder="e.g. NFLX">
+      <div class="help">Adds to the agent's universe.</div>
+    </div>
+    <div class="field">
+      <label class="lbl">Max per-trade BP %</label>
+      <input type="range" class="slider" min="1" max="20" value="5">
+      <div class="derived">= 5% × $10,000 = $500 cap</div>
+    </div>
+  </div>
+</body>
+</html>

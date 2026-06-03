@@ -1,0 +1,28 @@
+<!-- @dsCard group="Brand" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg-pure); font-family: var(--font-ui); padding: 0; }
+  .bar { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: #000; }
+  .wm { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+  .wm span { color: var(--brand); }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--gain) 50%, transparent); color: var(--gain); display: inline-flex; align-items: center; gap: 6px; }
+  .live { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gain); position: relative; }
+  .dot::after { content:''; position:absolute; inset:-4px; border-radius:50%; background: var(--gain); opacity:0.4; animation: pulse 1.6s var(--ease) infinite; }
+  @keyframes pulse { 0%{transform:scale(0.6);opacity:0.5} 100%{transform:scale(1.8);opacity:0} }
+  .pl { font-family: var(--font-mono); font-weight: 600; color: var(--gain); font-size: 14px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="wm">Tasty<span>Agent</span></div>
+    <span class="pill"><span style="width:7px;height:7px;border-radius:50%;background:var(--gain);display:inline-block"></span>Market Open</span>
+    <span class="pl">+$420.18</span>
+    <span class="live"><span class="dot"></span>live · updated 3s ago</span>
+  </div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!-- @dsCard group="Spacing" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; }
+  .row { display: flex; gap: 20px; align-items: flex-end; }
+  .item { text-align: center; }
+  .box { background: var(--surface-2); border: 1px solid var(--border-strong); }
+  .b12 { width: 88px; height: 64px; border-radius: 12px; }
+  .b8 { width: 88px; height: 44px; border-radius: 8px; }
+  .b999 { width: 88px; height: 32px; border-radius: 999px; }
+  .name { font-size: 12px; font-weight: 600; color: var(--text); margin-top: 8px; }
+  .val { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="item"><div class="box b12"></div><div class="name">card</div><div class="val">12px</div></div>
+    <div class="item"><div class="box b8"></div><div class="name">input / button</div><div class="val">8px</div></div>
+    <div class="item"><div class="box b999"></div><div class="name">pill</div><div class="val">999px</div></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-ui); padding: 22px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 14px; }
+  button { font-family: var(--font-ui); font-size: 14px; font-weight: 500; border-radius: 8px; padding: 9px 16px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .primary { background: var(--brand); color: #fff; }
+  .secondary { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+  .kill { background: transparent; color: var(--brand); border-color: var(--brand); font-weight: 600; }
+  .kill-on { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 600; }
+  .auto-on { background: var(--gain-soft); color: var(--gain); border-color: var(--gain); font-weight: 600; }
+  .disabled { background: var(--surface-2); color: var(--text-faint); border-color: var(--border); cursor: default; }
+  button svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <button class="primary"><i data-lucide="play"></i>Run cycle</button>
+    <button class="secondary">Cancel</button>
+    <button class="disabled"><i data-lucide="loader"></i>Running cycle…</button>
+  </div>
+  <div class="row">
+    <button class="kill"><i data-lucide="octagon-x"></i>Kill switch</button>
+    <button class="kill-on"><i data-lucide="octagon-x"></i>Kill switch ON</button>
+    <button class="auto-on"><span style="width:8px;height:8px;border-radius:50%;background:var(--gain);display:inline-block"></span>Auto: ON</button>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

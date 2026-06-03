@@ -1,0 +1,160 @@
+/* ============================================================================
+   TastyAgent — Design Foundations
+   Colors + Type tokens for the dark, data-dense trading control panel.
+   Source of truth: docs/UI_REDESIGN_BRIEF.md (brandons17563/TastyAgent)
+   Theme: tastytrade black / white / red. Dark only (no light mode).
+   ========================================================================== */
+
+/* Fonts are loaded via Google Fonts CDN (see fonts/README.md for the swap note).
+   Inter   — UI / headings / body
+   JetBrains Mono — numbers, prices, tables, code (tabular alignment) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Surfaces (near-black canvas, raised by surface color) ------------- */
+  --bg:           #0A0A0B; /* app background — near black                    */
+  --bg-pure:      #000000; /* deepest header / sidebar                       */
+  --surface:      #141417; /* cards / panels raised off the canvas           */
+  --surface-2:    #1C1C21; /* inputs, nested rows, hover fills               */
+  --border:       #2A2A30; /* hairline borders / dividers                    */
+  --border-strong:#3A3A42; /* focus / emphasis borders                       */
+
+  /* ---- Text ------------------------------------------------------------- */
+  --text:         #FFFFFF; /* primary text, key numbers                      */
+  --text-muted:   #9A9AA4; /* labels, secondary text (>=4.5:1 on canvas)     */
+  --text-faint:   #6B6B74; /* tertiary / disabled                            */
+
+  /* ---- Brand (tastytrade red) ------------------------------------------- */
+  /* Brief specifies #E4002B for brand/CTA/danger fills. Disambiguate from
+     loss-red by FORM: red FILLS = actions, red TEXT = negative values.      */
+  --brand:        #E4002B; /* logo, primary CTA fills, active nav, danger    */
+  --brand-hover:  #FF1F47; /* CTA hover                                      */
+  --brand-press:  #C20025; /* CTA pressed                                    */
+  --brand-soft:   #E4002B22;/* subtle brand tint (active nav bg, chips)      */
+
+  /* ---- Semantic P/L ----------------------------------------------------- */
+  --gain:         #16C784; /* positive P/L text                              */
+  --loss:         #FF4D6A; /* negative P/L text (brighter for 4.5:1 on dark) */
+  --gain-soft:    #16C78422;/* tint behind gain chips / sparkline fills      */
+  --loss-soft:    #FF4D6A22;/* tint behind loss chips / sparkline fills      */
+
+  /* ---- Status ----------------------------------------------------------- */
+  --warn:         #F0A500; /* cautions — near-DTE, approval pending          */
+  --warn-soft:    #F0A50022;
+  --info:         #4C9AFF; /* neutral highlights / links (used sparingly)    */
+  --info-soft:    #4C9AFF22;
+
+  /* ---- Typography families --------------------------------------------- */
+  --font-ui:   'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ---- Type scale (px) -------------------------------------------------- */
+  --fs-kpi:     32px; /* big KPI numbers (28–34)                             */
+  --fs-title:   22px; /* page title (20–24)                                  */
+  --fs-section: 15px; /* uppercase-tracked section labels                    */
+  --fs-body:    14px; /* body / controls                                     */
+  --fs-table:   13px; /* dense table cells                                   */
+  --fs-label:   12px; /* small labels / pills                                */
+  --fs-micro:   11px; /* tags                                                */
+
+  --lh-prose: 1.5;
+  --lh-tight: 1.2;
+
+  /* tracking for uppercase section labels */
+  --track-caps: 0.06em;
+
+  /* ---- Radii ------------------------------------------------------------ */
+  --r-card:  12px;
+  --r-input: 8px;
+  --r-pill:  999px;
+
+  /* ---- Spacing (4px base) ----------------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* ---- Elevation (flat on black: surface color + 1px border + top sheen) - */
+  --elev-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --elev-pop:   0 8px 24px rgba(0, 0, 0, 0.5); /* dialogs / popovers only     */
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  150ms;
+  --dur:       200ms;
+  --dur-slow:  250ms;
+
+  /* ---- Focus ring ------------------------------------------------------- */
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
+}
+
+/* ============================================================================
+   SEMANTIC ELEMENT STYLES — apply directly or mirror into components
+   ========================================================================== */
+
+.ds-h1 {
+  font-family: var(--font-ui);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.ds-section-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--text-muted);
+}
+
+.ds-body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: var(--lh-prose);
+  color: var(--text);
+}
+
+.ds-muted {
+  color: var(--text-muted);
+}
+
+/* All numbers, prices, P/L, deltas, percentages — tabular alignment. */
+.ds-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.ds-kpi {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-kpi);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+.ds-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-table);
+  color: var(--text);
+}
+
+/* Semantic value coloring */
+.ds-gain { color: var(--gain); }
+.ds-loss { color: var(--loss); }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
