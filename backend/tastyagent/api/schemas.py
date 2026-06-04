@@ -147,6 +147,27 @@ class SettingsUpdate(BaseModel):
     risk: dict | None = None
 
 
+class ActivityTrade(BaseModel):
+    """One trade row inside a decision-cycle breakdown table."""
+
+    symbol: str
+    strategy: str
+    contracts: int
+    credit: float
+    pop: float
+    status: str
+    detail: str = ""  # rejection reason / exit reason
+    realized_pnl: float | None = None
+
+
+class ReasoningItem(BaseModel):
+    """A per-ticker bullet of Claude's reasoning for a cycle."""
+
+    symbol: str
+    text: str
+    tone: str  # placed | rejected | managed
+
+
 class ActivityItem(BaseModel):
     id: int
     created_at: datetime
@@ -155,4 +176,10 @@ class ActivityItem(BaseModel):
     considered: int
     placed: int
     rejected: int
+    managed: int
     symbols: list[str]
+    reasoning: list[ReasoningItem] = []
+    planned_trades: list[ActivityTrade] = []
+    placed_trades: list[ActivityTrade] = []
+    rejected_trades: list[ActivityTrade] = []
+    managed_trades: list[ActivityTrade] = []

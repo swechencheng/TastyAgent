@@ -3,7 +3,8 @@ from tastyagent.strategy.sizing import size_trade
 
 from .conftest import make_candidate
 
-LIMITS = RiskLimits()  # max_trade_bp_pct=0.05, max_total_bp_pct=0.40
+# Pin the per-trade cap so these sizing assertions don't depend on the default.
+LIMITS = RiskLimits(max_trade_bp_pct=0.05)  # per-trade 5%, total 40%
 
 
 def test_sizes_to_per_trade_cap():
