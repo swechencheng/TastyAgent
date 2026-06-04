@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Toaster } from "@/components/ui/sonner";
 import ConfirmDialog, { ConfirmSpec } from "@/components/ConfirmDialog";
+import Notifications from "@/components/Notifications";
 import { cn } from "@/lib/utils";
 
 import Overview from "@/components/screens/Overview";
@@ -291,6 +292,7 @@ export default function App() {
 
       <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />
       <Toaster />
+      <Notifications />
     </div>
   );
 }

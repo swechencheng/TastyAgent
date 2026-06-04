@@ -74,3 +74,25 @@ def test_activity_feed():
     assert a["placed"] == 1
     assert a["rejected"] == 1
     assert a["symbols"] == ["XLE"]
+
+
+def test_trade_events_feed_and_timeline():
+    sf = factory()
+    lg = Ledger(sf())
+    t = lg.record_planned(make_candidate(symbol="XLE"), 1, "high IVR", TradingMode.SANDBOX)
+    lg.mark_working(t, "ORD-1")
+    lg.mark_open(t)
+
+    c = client(sf)
+    # The position carries its lifecycle events in order.
+    pos = c.get("/api/positions").json()
+    assert pos and pos[0]["symbol"] == "XLE"
+    kinds = [e["kind"] for e in pos[0]["events"]]
+    assert kinds == ["planned", "working", "open"]
+
+    # The global event feed exposes them with the symbol, newest-discoverable via `after`.
+    feed = c.get("/api/events").json()
+    assert [e["kind"] for e in feed] == ["planned", "working", "open"]
+    assert all(e["symbol"] == "XLE" for e in feed)
+    after = c.get(f"/api/events?after={feed[-2]['id']}").json()
+    assert [e["kind"] for e in after] == ["open"]

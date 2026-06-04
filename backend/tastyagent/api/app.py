@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import TradingMode
-from ..db.models import Decision, EquitySnapshot, Trade, TradeStatus
+from ..db.models import Decision, EquitySnapshot, Trade, TradeEvent, TradeStatus
 from ..decision.context import DEFAULT_WATCHLIST
 from ..execution.executor import Executor
 from ..portfolio import benchmark as bench
@@ -32,6 +32,7 @@ from .schemas import (
     ActivityTrade,
     BenchmarkOut,
     BenchmarkPoint,
+    EventFeedItem,
     KillSwitchRequest,
     ModeRequest,
     PnLOut,
@@ -452,6 +453,33 @@ def create_app(
                 )
             )
         return items
+
+    # --- live event feed (status changes -> toast / desktop notifications) ---
+    @app.get("/api/events", response_model=list[EventFeedItem])
+    def events(after: int = 0, limit: int = 50, s: Session = Depends(get_session)) -> list[EventFeedItem]:
+        rows = list(
+            s.scalars(
+                select(TradeEvent)
+                .where(TradeEvent.id > after)
+                .order_by(TradeEvent.id)
+                .limit(limit)
+            )
+        )
+        out: list[EventFeedItem] = []
+        for e in rows:
+            t = e.trade
+            out.append(
+                EventFeedItem(
+                    id=e.id,
+                    ts=e.ts,
+                    trade_id=e.trade_id,
+                    symbol=t.symbol if t else "?",
+                    strategy=t.strategy if t else "",
+                    kind=e.kind,
+                    detail=e.detail,
+                )
+            )
+        return out
 
     return app
 

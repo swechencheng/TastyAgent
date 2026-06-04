@@ -32,6 +32,12 @@ export interface Leg {
   delta: number;
 }
 
+export interface TradeEvent {
+  ts: string;
+  kind: string;
+  detail: string;
+}
+
 export interface Trade {
   id: number;
   symbol: string;
@@ -51,7 +57,19 @@ export interface Trade {
   is_win: boolean | null;
   opened_at: string | null;
   closed_at: string | null;
+  created_at: string | null;
   legs: Leg[];
+  events: TradeEvent[];
+}
+
+export interface EventFeedItem {
+  id: number;
+  ts: string;
+  trade_id: number;
+  symbol: string;
+  strategy: string;
+  kind: string;
+  detail: string;
 }
 
 export interface BenchmarkPoint {

@@ -17,6 +17,13 @@ class LegOut(BaseModel):
     delta: float
 
 
+class TradeEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    ts: datetime
+    kind: str
+    detail: str
+
+
 class TradeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -37,7 +44,9 @@ class TradeOut(BaseModel):
     is_win: bool | None
     opened_at: datetime | None
     closed_at: datetime | None
+    created_at: datetime | None = None
     legs: list[LegOut]
+    events: list[TradeEventOut] = []
 
 
 class PnLOut(BaseModel):
@@ -145,6 +154,18 @@ class SettingsUpdate(BaseModel):
     scheduler_market_hours_only: bool | None = None
     strategy: dict | None = None
     risk: dict | None = None
+
+
+class EventFeedItem(BaseModel):
+    """A trade lifecycle event with its symbol — drives live toast/desktop pushes."""
+
+    id: int
+    ts: datetime
+    trade_id: int
+    symbol: str
+    strategy: str
+    kind: str
+    detail: str
 
 
 class ActivityTrade(BaseModel):
