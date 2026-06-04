@@ -97,8 +97,8 @@ export default function Positions() {
                                 {t.rationale}
                               </div>
                               <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.05em] text-text-faint">
-                                Live timeline
                                 <span className="size-1.5 animate-pulse rounded-full bg-gain" />
+                                Live timeline
                               </div>
                               <PositionTimeline trade={t} />
                             </TableCell>

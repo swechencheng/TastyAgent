@@ -137,7 +137,7 @@ const EVENT_DOT: Record<string, string> = {
 const EVENT_TITLE: Record<string, string> = {
   planned: "Planned",
   working: "Working",
-  open: "Filled — open",
+  open: "Filled",
   managed: "Managed",
   rolled: "Rolled",
   closed: "Closed",
@@ -170,8 +170,10 @@ export function PositionTimeline({ trade }: { trade: Trade }) {
           <div className="pb-3.5">
             <div className={cn("text-xs text-text-faint", num)}>{new Date(e.ts).toLocaleString()}</div>
             <div className="text-[13px]">
-              <span className="font-medium">{EVENT_TITLE[e.kind] || e.kind}</span>
-              {e.detail && <span className="text-muted-foreground"> — {e.detail}</span>}
+              <span className="font-medium">
+                {trade.symbol} — {EVENT_TITLE[e.kind] || e.kind}
+              </span>
+              <span className="text-muted-foreground"> — Status {e.kind}</span>
             </div>
           </div>
         </div>
