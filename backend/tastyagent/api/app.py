@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import TradingMode
-from ..db.models import Decision, EquitySnapshot, TradeStatus
+from ..db.models import Decision, EquitySnapshot, Trade, TradeEvent, TradeStatus
 from ..decision.context import DEFAULT_WATCHLIST
 from ..execution.executor import Executor
 from ..portfolio import benchmark as bench
@@ -29,12 +29,15 @@ from .runtime import Runtime
 from .schemas import (
     ActionResult,
     ActivityItem,
+    ActivityTrade,
     BenchmarkOut,
     BenchmarkPoint,
+    EventFeedItem,
     KillSwitchRequest,
     ModeRequest,
     PnLOut,
     RankedSymbol,
+    ReasoningItem,
     SchedulerConfig,
     SettingsOut,
     SettingsUpdate,
@@ -232,7 +235,7 @@ def create_app(
             sess.close()
 
     @app.post("/api/scheduler/start", response_model=StatusOut)
-    def scheduler_start(
+    async def scheduler_start(
         body: dict | None = None, rt: Runtime = Depends(get_runtime)
     ) -> StatusOut:
         if app.state.client is None:
@@ -254,7 +257,7 @@ def create_app(
         return status(rt)
 
     @app.post("/api/scheduler/stop", response_model=StatusOut)
-    def scheduler_stop(rt: Runtime = Depends(get_runtime)) -> StatusOut:
+    async def scheduler_stop(rt: Runtime = Depends(get_runtime)) -> StatusOut:
         if app.state.scheduler_stop is not None:
             app.state.scheduler_stop.set()
         return status(rt)
@@ -366,26 +369,117 @@ def create_app(
         return _settings_out(rt)
 
     # --- activity (recent decision cycles + Claude's rationale) ---
+    PLACED_STATUSES = (
+        TradeStatus.WORKING,
+        TradeStatus.OPEN,
+        TradeStatus.PENDING_APPROVAL,
+        TradeStatus.PLANNED,
+    )
+
+    def _act_trade(t: Trade, detail: str = "") -> ActivityTrade:
+        return ActivityTrade(
+            symbol=t.symbol,
+            strategy=t.strategy,
+            contracts=t.contracts,
+            credit=t.entry_credit,
+            pop=t.probability_of_profit,
+            status=t.status.value,
+            detail=detail,
+            realized_pnl=t.realized_pnl,
+        )
+
     @app.get("/api/activity", response_model=list[ActivityItem])
     def activity(limit: int = 25, s: Session = Depends(get_session)) -> list[ActivityItem]:
         decisions = list(
             s.scalars(select(Decision).order_by(Decision.created_at.desc()).limit(limit))
         )
+        # "Managed" actions (exits/rolls) aren't linked to a decision, so bucket
+        # CLOSED trades into the cycle whose time window contains their close.
+        oldest = decisions[-1].created_at if decisions else None
+        closed: list[Trade] = []
+        if oldest is not None:
+            closed = list(
+                s.scalars(
+                    select(Trade)
+                    .where(Trade.status == TradeStatus.CLOSED, Trade.closed_at.is_not(None))
+                    .where(Trade.closed_at >= oldest)
+                    .order_by(Trade.closed_at)
+                )
+            )
+
         items: list[ActivityItem] = []
-        for d in decisions:
-            placed = [
-                t for t in d.trades
-                if t.status in (TradeStatus.WORKING, TradeStatus.OPEN, TradeStatus.PENDING_APPROVAL)
-            ]
+        for i, d in enumerate(decisions):
+            newer_bound = decisions[i - 1].created_at if i > 0 else None
+            placed = [t for t in d.trades if t.status in PLACED_STATUSES]
             rejected = [t for t in d.trades if t.status is TradeStatus.REJECTED]
+            managed = [
+                t for t in closed
+                if t.closed_at is not None
+                and t.closed_at >= d.created_at
+                and (newer_bound is None or t.closed_at < newer_bound)
+            ]
+
+            # Per-ticker reasoning bullets (structured, easy to follow).
+            reasoning = []
+            for t in placed:
+                if t.rationale:
+                    reasoning.append(ReasoningItem(symbol=t.symbol, text=t.rationale, tone="placed"))
+            for t in rejected:
+                reasoning.append(
+                    ReasoningItem(symbol=t.symbol, text=t.rationale or "Rejected by guardrails.", tone="rejected")
+                )
+            for t in managed:
+                reasoning.append(
+                    ReasoningItem(symbol=t.symbol, text=t.exit_reason or "Managed.", tone="managed")
+                )
+
+            planned = placed + rejected
             items.append(
                 ActivityItem(
-                    id=d.id, created_at=d.created_at, mode=d.mode, commentary=d.commentary,
-                    considered=d.considered, placed=len(placed), rejected=len(rejected),
+                    id=d.id,
+                    created_at=d.created_at,
+                    mode=d.mode,
+                    commentary=d.commentary,
+                    considered=d.considered,
+                    placed=len(placed),
+                    rejected=len(rejected),
+                    managed=len(managed),
                     symbols=sorted({t.symbol for t in placed}),
+                    reasoning=reasoning,
+                    planned_trades=[_act_trade(t) for t in planned],
+                    placed_trades=[_act_trade(t) for t in placed],
+                    rejected_trades=[_act_trade(t, t.rationale) for t in rejected],
+                    managed_trades=[_act_trade(t, t.exit_reason or "") for t in managed],
                 )
             )
         return items
+
+    # --- live event feed (status changes -> toast / desktop notifications) ---
+    @app.get("/api/events", response_model=list[EventFeedItem])
+    def events(after: int = 0, limit: int = 50, s: Session = Depends(get_session)) -> list[EventFeedItem]:
+        rows = list(
+            s.scalars(
+                select(TradeEvent)
+                .where(TradeEvent.id > after)
+                .order_by(TradeEvent.id)
+                .limit(limit)
+            )
+        )
+        out: list[EventFeedItem] = []
+        for e in rows:
+            t = e.trade
+            out.append(
+                EventFeedItem(
+                    id=e.id,
+                    ts=e.ts,
+                    trade_id=e.trade_id,
+                    symbol=t.symbol if t else "?",
+                    strategy=t.strategy if t else "",
+                    kind=e.kind,
+                    detail=e.detail,
+                )
+            )
+        return out
 
     return app
 

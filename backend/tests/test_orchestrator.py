@@ -11,7 +11,8 @@ from tastyagent.decision.orchestrator import PortfolioInput, run_cycle
 from .conftest import make_candidate
 
 PARAMS = StrategyParams()
-LIMITS = RiskLimits()  # 5% per-trade, 40% total, 2 per symbol, 15 max positions
+# Pin per-trade cap so sizing assertions don't depend on the default.
+LIMITS = RiskLimits(max_trade_bp_pct=0.05)  # 5% per-trade, 40% total, 2 per symbol
 
 
 def selector_picking(picks):

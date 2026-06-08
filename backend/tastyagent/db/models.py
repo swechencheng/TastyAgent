@@ -78,6 +78,9 @@ class Trade(Base):
     legs: Mapped[list["TradeLeg"]] = relationship(
         back_populates="trade", cascade="all, delete-orphan"
     )
+    events: Mapped[list["TradeEvent"]] = relationship(
+        back_populates="trade", cascade="all, delete-orphan", order_by="TradeEvent.ts"
+    )
 
     @property
     def is_open(self) -> bool:
@@ -116,6 +119,24 @@ class TradeLeg(Base):
     delta: Mapped[float] = mapped_column(Float, default=0.0)
 
     trade: Mapped[Trade] = relationship(back_populates="legs")
+
+
+class TradeEvent(Base):
+    """A timestamped lifecycle event for a trade (working -> open -> rolled -> closed).
+
+    Drives the live position timeline and push/toast notifications. ``kind`` is a
+    stable token; ``detail`` is a human-readable one-liner.
+    """
+
+    __tablename__ = "trade_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trade_id: Mapped[int] = mapped_column(ForeignKey("trades.id"), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    kind: Mapped[str] = mapped_column(String(24))  # planned|working|open|managed|rolled|closed|rejected|canceled
+    detail: Mapped[str] = mapped_column(Text, default="")
+
+    trade: Mapped["Trade"] = relationship(back_populates="events")
 
 
 class WatchlistEntry(Base):

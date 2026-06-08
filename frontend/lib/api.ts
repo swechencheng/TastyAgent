@@ -1,0 +1,236 @@
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+
+export interface Status {
+  mode: string;
+  kill_switch: boolean;
+  market_open: boolean;
+  starting_capital: number;
+  requires_approval: boolean;
+  scheduler_running: boolean;
+}
+
+export interface Pnl {
+  realized_pnl: number;
+  unrealized_pnl: number;
+  total_pnl: number;
+  open_count: number;
+  closed_count: number;
+  wins: number;
+  losses: number;
+  win_rate: number | null;
+  profit_pct: number | null;
+  starting_capital: number;
+}
+
+export interface Leg {
+  option_type: string;
+  strike: number;
+  expiration: string;
+  action: string;
+  quantity: number;
+  delta: number;
+}
+
+export interface TradeEvent {
+  ts: string;
+  kind: string;
+  detail: string;
+}
+
+export interface Trade {
+  id: number;
+  symbol: string;
+  strategy: string;
+  contracts: number;
+  status: string;
+  mode: string;
+  rationale: string;
+  entry_credit: number;
+  buying_power: number;
+  dte_at_entry: number;
+  current_cost_to_close: number;
+  unrealized_pnl: number;
+  probability_of_profit: number;
+  realized_pnl: number | null;
+  exit_reason: string | null;
+  is_win: boolean | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  created_at: string | null;
+  legs: Leg[];
+  events: TradeEvent[];
+}
+
+export interface EventFeedItem {
+  id: number;
+  ts: string;
+  trade_id: number;
+  symbol: string;
+  strategy: string;
+  kind: string;
+  detail: string;
+}
+
+export interface BenchmarkPoint {
+  date: string;
+  value: number;
+}
+
+export interface Benchmark {
+  strategy_return_pct: number;
+  sp500_return_pct: number;
+  outperformance_pct: number;
+  strategy_curve: BenchmarkPoint[];
+  sp500_curve: BenchmarkPoint[];
+}
+
+export const fetcher = (path: string) =>
+  fetch(`${API_BASE}${path}`).then((r) => {
+    if (!r.ok) throw new Error(`${path}: ${r.status}`);
+    return r.json();
+  });
+
+async function post(path: string, body?: unknown) {
+  const r = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
+export const setMode = (mode: string) => post("/api/mode", { mode });
+export const setKillSwitch = (engaged: boolean) =>
+  post("/api/kill-switch", { engaged });
+export const approveTrade = (id: number) => post(`/api/approvals/${id}/approve`);
+export const rejectTrade = (id: number) => post(`/api/approvals/${id}/reject`);
+export interface WatchlistItem {
+  symbol: string;
+  enabled: boolean;
+  source: string;
+}
+
+export interface RankedSymbol {
+  symbol: string;
+  iv_rank: number | null;
+  iv_percentile: number | null;
+  liquidity_rating: number | null;
+}
+
+export interface TastytradeWatchlist {
+  name: string;
+  group: string | null;
+  symbols: string[];
+}
+
+export const addToWatchlist = (symbol: string) => post("/api/watchlist", { symbol });
+export const removeFromWatchlist = (symbol: string) =>
+  fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+export const toggleWatchlist = (symbol: string, enabled: boolean) =>
+  post(`/api/watchlist/${encodeURIComponent(symbol)}/toggle`, { enabled });
+export const importWatchlist = (symbols: string[], source: string) =>
+  post("/api/watchlist/import", { symbols, source });
+
+export const runCycle = () => post("/api/cycle/run");
+export const startScheduler = (interval_seconds = 300, market_hours_only = true) =>
+  post("/api/scheduler/start", { interval_seconds, market_hours_only });
+export const stopScheduler = () => post("/api/scheduler/stop");
+
+// ---- Settings -------------------------------------------------------------
+export interface SchedulerConfig {
+  interval_seconds: number;
+  market_hours_only: boolean;
+}
+
+export interface Settings {
+  mode: string;
+  kill_switch: boolean;
+  working_capital: number;
+  scheduler: SchedulerConfig;
+  strategy: Record<string, number | boolean>;
+  risk: Record<string, number | boolean>;
+}
+
+export interface SettingsUpdate {
+  working_capital?: number;
+  scheduler_interval_seconds?: number;
+  scheduler_market_hours_only?: boolean;
+  strategy?: Record<string, number | boolean>;
+  risk?: Record<string, number | boolean>;
+}
+
+export async function putSettings(body: SettingsUpdate): Promise<Settings> {
+  const r = await fetch(`${API_BASE}/api/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`PUT /api/settings: ${r.status}`);
+  return r.json();
+}
+
+// ---- Activity -------------------------------------------------------------
+export interface ActivityTrade {
+  symbol: string;
+  strategy: string;
+  contracts: number;
+  credit: number;
+  pop: number;
+  status: string;
+  detail: string;
+  realized_pnl: number | null;
+}
+
+export interface ReasoningItem {
+  symbol: string;
+  text: string;
+  tone: "placed" | "rejected" | "managed";
+}
+
+export interface ActivityItem {
+  id: number;
+  created_at: string;
+  mode: string;
+  commentary: string;
+  considered: number;
+  placed: number;
+  rejected: number;
+  managed: number;
+  symbols: string[];
+  reasoning: ReasoningItem[];
+  planned_trades: ActivityTrade[];
+  placed_trades: ActivityTrade[];
+  rejected_trades: ActivityTrade[];
+  managed_trades: ActivityTrade[];
+}
+
+// ---- Formatters -----------------------------------------------------------
+/** Whole-dollar, unsigned magnitude with $ — e.g. $10,000 */
+export const fmtMoney0 = (n: number | null | undefined) =>
+  n == null ? "—" : `$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+/** Signed money with 2 decimals and a true minus sign — e.g. +$420.18 / −$112.40 */
+export const fmtMoneySigned = (n: number | null | undefined) => {
+  if (n == null) return "—";
+  const sign = n > 0 ? "+" : n < 0 ? "−" : "";
+  return `${sign}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+/** Rounded currency, no sign — legacy callers */
+export const fmtMoney = (n: number | null | undefined) =>
+  n == null
+    ? "—"
+    : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+/** Fraction (0.042) → "+4.20%". Pass alreadyPct=true for values already in percent. */
+export const fmtPctSigned = (n: number | null | undefined, alreadyPct = false) => {
+  if (n == null) return "—";
+  const v = alreadyPct ? n : n * 100;
+  const sign = v > 0 ? "+" : v < 0 ? "−" : "";
+  return `${sign}${Math.abs(v).toFixed(2)}%`;
+};
+
+export const fmtPct = (n: number | null | undefined) =>
+  n == null ? "—" : `${(n * 100).toFixed(1)}%`;

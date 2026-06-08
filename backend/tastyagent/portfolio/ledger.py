@@ -16,13 +16,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import TradingMode
-from ..db.models import Decision, Trade, TradeLeg, TradeStatus, utcnow
+from ..db.models import Decision, Trade, TradeEvent, TradeLeg, TradeStatus, utcnow
 from ..models import CandidateTrade
 
 
 class Ledger:
     def __init__(self, session: Session) -> None:
         self.s = session
+
+    # --- lifecycle events (drive the live timeline + push notifications) ---
+    def record_event(self, trade: Trade, kind: str, detail: str = "") -> TradeEvent:
+        ev = TradeEvent(trade_id=trade.id, kind=kind, detail=detail)
+        self.s.add(ev)
+        self.s.commit()
+        return ev
 
     # --- decisions ---
     def record_decision(self, mode: TradingMode, commentary: str, considered: int) -> Decision:
@@ -67,6 +74,12 @@ class Ledger:
         ]
         self.s.add(trade)
         self.s.commit()
+        if status is TradeStatus.REJECTED:
+            self.record_event(trade, "rejected", rationale)
+        elif status is TradeStatus.PENDING_APPROVAL:
+            self.record_event(trade, "planned", "Awaiting your approval")
+        else:
+            self.record_event(trade, "planned", "Order created")
         return trade
 
     def record_planned(self, candidate, contracts, rationale, mode, decision=None) -> Trade:
@@ -86,6 +99,7 @@ class Ledger:
         trade.status = TradeStatus.WORKING
         trade.broker_order_id = broker_order_id
         self.s.commit()
+        self.record_event(trade, "working", f"Order working — submitted to broker (#{broker_order_id})")
 
     def mark_open(self, trade: Trade, opened_at: datetime | None = None) -> None:
         trade.status = TradeStatus.OPEN
@@ -93,13 +107,19 @@ class Ledger:
         if trade.entry_date is None and trade.opened_at is not None:
             trade.entry_date = trade.opened_at.date()
         self.s.commit()
+        self.record_event(trade, "open", "Filled — position open")
 
     def update_mark(self, trade: Trade, current_cost_to_close: float) -> None:
         trade.current_cost_to_close = current_cost_to_close
         self.s.commit()
 
     def close_trade(
-        self, trade: Trade, exit_debit: float, exit_reason: str, closed_at: datetime | None = None
+        self,
+        trade: Trade,
+        exit_debit: float,
+        exit_reason: str,
+        closed_at: datetime | None = None,
+        kind: str = "closed",
     ) -> None:
         trade.exit_debit = exit_debit
         trade.exit_reason = exit_reason
@@ -107,11 +127,16 @@ class Ledger:
         trade.status = TradeStatus.CLOSED
         trade.closed_at = closed_at or utcnow()
         self.s.commit()
+        verb = "Rolled" if kind == "rolled" else "Closed"
+        self.record_event(
+            trade, kind, f"{verb} — {exit_reason} (realized {trade.realized_pnl:+,.2f})"
+        )
 
     def cancel_trade(self, trade: Trade, reason: str = "canceled") -> None:
         trade.status = TradeStatus.CANCELED
         trade.exit_reason = reason
         self.s.commit()
+        self.record_event(trade, "canceled", reason)
 
     def record_roll(
         self, old_trade, new_candidate, contracts, exit_debit, reason, new_order_id
@@ -121,7 +146,7 @@ class Ledger:
         Models a roll as close-old + open-new; the new trade is linked back via its
         rationale and starts WORKING with the broker order id.
         """
-        self.close_trade(old_trade, exit_debit=exit_debit, exit_reason=reason)
+        self.close_trade(old_trade, exit_debit=exit_debit, exit_reason=reason, kind="rolled")
         new = self._new_trade(
             new_candidate,
             contracts,
@@ -132,6 +157,7 @@ class Ledger:
         )
         new.broker_order_id = new_order_id
         self.s.commit()
+        self.record_event(new, "working", f"Rolled from #{old_trade.id} — order working (#{new_order_id})")
         return new
 
     # --- queries ---

@@ -15,6 +15,7 @@ import {
   Loading,
   PageHeader,
   Pagination,
+  PositionTimeline,
   ProfitBar,
   num,
   pop,
@@ -24,7 +25,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const POLL = { refreshInterval: 8000 };
-const fmtTs = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
 
 export default function Positions() {
   const [tab, setTab] = useState("open");
@@ -91,9 +91,16 @@ export default function Positions() {
                         </TableRow>
                         {expanded === t.id && (
                           <TableRow className="hover:bg-surface-2">
-                            <TableCell colSpan={9} className="bg-surface-2 leading-relaxed">
-                              <span className="text-xs text-muted-foreground">Rationale · </span>
-                              <span className="text-[13px]">{t.rationale}</span>
+                            <TableCell colSpan={9} className="bg-surface-2 p-4">
+                              <div className="mb-3 text-[13px] leading-relaxed">
+                                <span className="text-xs text-muted-foreground">Rationale · </span>
+                                {t.rationale}
+                              </div>
+                              <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.05em] text-text-faint">
+                                <span className="size-1.5 animate-pulse rounded-full bg-gain" />
+                                Live timeline
+                              </div>
+                              <PositionTimeline trade={t} />
                             </TableCell>
                           </TableRow>
                         )}
@@ -144,11 +151,12 @@ export default function Positions() {
                           {expanded === t.id && (
                             <TableRow className="hover:bg-surface-2">
                               <TableCell colSpan={8} className="bg-surface-2 p-4">
-                                <div className="mb-2 text-[11px] uppercase tracking-[0.05em] text-text-faint">Trade detail</div>
-                                <div className={cn("mb-1.5 text-xs text-muted-foreground", num)}>
-                                  Opened {fmtTs(t.opened_at)} · Closed {fmtTs(t.closed_at)}
+                                <div className="mb-3 text-[13px] leading-relaxed">
+                                  <span className="text-xs text-muted-foreground">Rationale · </span>
+                                  {t.rationale}
                                 </div>
-                                <div className="text-[13px] leading-relaxed">{t.rationale}</div>
+                                <div className="mb-2 text-[11px] uppercase tracking-[0.05em] text-text-faint">Trade timeline</div>
+                                <PositionTimeline trade={t} />
                               </TableCell>
                             </TableRow>
                           )}

@@ -66,7 +66,9 @@ class StrategyParams:
 class RiskLimits:
     """Portfolio-level safety rails enforced after strategy selection."""
 
-    max_trade_bp_pct: float = 0.05  # max buying-power reduction per trade vs net liq
+    max_trade_bp_pct: float = 0.25  # max buying-power reduction per trade vs net liq
+    # ^ 25% at $10k = $2,500/trade. 5% was too tight for defined-risk spreads at this
+    #   working capital (most got rejected on sizing); tune live via PUT /api/settings.
     max_total_bp_pct: float = 0.40  # max aggregate BP usage vs net liq
     max_positions: int = 15
     max_positions_per_symbol: int = 2

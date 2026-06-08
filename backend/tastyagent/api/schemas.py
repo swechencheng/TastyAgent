@@ -17,6 +17,13 @@ class LegOut(BaseModel):
     delta: float
 
 
+class TradeEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    ts: datetime
+    kind: str
+    detail: str
+
+
 class TradeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -37,7 +44,9 @@ class TradeOut(BaseModel):
     is_win: bool | None
     opened_at: datetime | None
     closed_at: datetime | None
+    created_at: datetime | None = None
     legs: list[LegOut]
+    events: list[TradeEventOut] = []
 
 
 class PnLOut(BaseModel):
@@ -147,6 +156,39 @@ class SettingsUpdate(BaseModel):
     risk: dict | None = None
 
 
+class EventFeedItem(BaseModel):
+    """A trade lifecycle event with its symbol — drives live toast/desktop pushes."""
+
+    id: int
+    ts: datetime
+    trade_id: int
+    symbol: str
+    strategy: str
+    kind: str
+    detail: str
+
+
+class ActivityTrade(BaseModel):
+    """One trade row inside a decision-cycle breakdown table."""
+
+    symbol: str
+    strategy: str
+    contracts: int
+    credit: float
+    pop: float
+    status: str
+    detail: str = ""  # rejection reason / exit reason
+    realized_pnl: float | None = None
+
+
+class ReasoningItem(BaseModel):
+    """A per-ticker bullet of Claude's reasoning for a cycle."""
+
+    symbol: str
+    text: str
+    tone: str  # placed | rejected | managed
+
+
 class ActivityItem(BaseModel):
     id: int
     created_at: datetime
@@ -155,4 +197,10 @@ class ActivityItem(BaseModel):
     considered: int
     placed: int
     rejected: int
+    managed: int
     symbols: list[str]
+    reasoning: list[ReasoningItem] = []
+    planned_trades: list[ActivityTrade] = []
+    placed_trades: list[ActivityTrade] = []
+    rejected_trades: list[ActivityTrade] = []
+    managed_trades: list[ActivityTrade] = []

@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2, TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fmtMoney0 } from "@/lib/api";
+import { fmtMoney0, Trade, TradeEvent } from "@/lib/api";
 
 /* ---- Number helpers (presentation) --------------------------------------- */
 export const pop = (p: number | null | undefined) => `${Math.round((p ?? 0) * 100)}%`;
@@ -119,6 +119,65 @@ export function ProfitBar({ pct }: { pct: number }) {
       <div className="h-[5px] w-[60px] overflow-hidden rounded-full bg-surface-2">
         <div className={cn("h-full rounded-full", isPos ? "bg-gain" : "bg-loss")} style={{ width: `${Math.min(abs, 100)}%` }} />
       </div>
+    </div>
+  );
+}
+
+/* ---- Position lifecycle timeline ----------------------------------------- */
+const EVENT_DOT: Record<string, string> = {
+  planned: "bg-text-faint",
+  working: "bg-info",
+  open: "bg-gain",
+  managed: "bg-warn",
+  rolled: "bg-warn",
+  closed: "bg-muted-foreground",
+  canceled: "bg-loss",
+  rejected: "bg-loss",
+};
+const EVENT_TITLE: Record<string, string> = {
+  planned: "Planned",
+  working: "Working",
+  open: "Filled",
+  managed: "Managed",
+  rolled: "Rolled",
+  closed: "Closed",
+  canceled: "Canceled",
+  rejected: "Rejected",
+};
+
+/** Build a timeline from the trade's events; fall back to its timestamps for
+ *  trades created before the event log existed. */
+function deriveEvents(t: Trade): TradeEvent[] {
+  if (t.events && t.events.length) return t.events;
+  const out: TradeEvent[] = [];
+  if (t.created_at) out.push({ ts: t.created_at, kind: "working", detail: "Order working" });
+  if (t.opened_at) out.push({ ts: t.opened_at, kind: "open", detail: "Filled — position open" });
+  if (t.closed_at) out.push({ ts: t.closed_at, kind: "closed", detail: t.exit_reason || "Closed" });
+  return out;
+}
+
+export function PositionTimeline({ trade }: { trade: Trade }) {
+  const events = deriveEvents(trade);
+  if (!events.length) return <Empty>No lifecycle events yet.</Empty>;
+  return (
+    <div className="flex flex-col">
+      {events.map((e, i) => (
+        <div key={i} className="flex gap-3.5">
+          <div className="flex w-3 flex-col items-center">
+            <span className={cn("size-2.5 shrink-0 rounded-full border-2 border-background", EVENT_DOT[e.kind] || "bg-text-faint")} />
+            {i < events.length - 1 && <span className="my-0.5 min-h-3 w-0.5 flex-1 bg-border" />}
+          </div>
+          <div className="pb-3.5">
+            <div className={cn("text-xs text-text-faint", num)}>{new Date(e.ts).toLocaleString()}</div>
+            <div className="text-[13px]">
+              <span className="font-medium">
+                {trade.symbol} — {EVENT_TITLE[e.kind] || e.kind}
+              </span>
+              <span className="text-muted-foreground"> — Status {e.kind}</span>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

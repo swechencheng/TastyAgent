@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Toaster } from "@/components/ui/sonner";
 import ConfirmDialog, { ConfirmSpec } from "@/components/ConfirmDialog";
+import NotificationBell from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 
 import Overview from "@/components/screens/Overview";
@@ -219,6 +220,8 @@ export default function App() {
             live
           </div>
         )}
+
+        <NotificationBell />
 
         <button
           onClick={askKill}
