@@ -1,5 +1,14 @@
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3060";
+export function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:3060`;
+  }
+  return "http://localhost:3060";
+}
+
+export const API_BASE = getApiBase();
 
 export interface Status {
   mode: string;
@@ -86,13 +95,13 @@ export interface Benchmark {
 }
 
 export const fetcher = (path: string) =>
-  fetch(`${API_BASE}${path}`).then((r) => {
+  fetch(`${getApiBase()}${path}`).then((r) => {
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
     return r.json();
   });
 
 async function post(path: string, body?: unknown) {
-  const r = await fetch(`${API_BASE}${path}`, {
+  const r = await fetch(`${getApiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
@@ -129,7 +138,7 @@ export type TastytradeWatchlist = ScannerWatchlist;
 
 export const addToWatchlist = (symbol: string) => post("/api/watchlist", { symbol });
 export const removeFromWatchlist = (symbol: string) =>
-  fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+  fetch(`${getApiBase()}/api/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
 export const toggleWatchlist = (symbol: string, enabled: boolean) =>
   post(`/api/watchlist/${encodeURIComponent(symbol)}/toggle`, { enabled });
 export const importWatchlist = (symbols: string[], source: string) =>
@@ -164,7 +173,7 @@ export interface SettingsUpdate {
 }
 
 export async function putSettings(body: SettingsUpdate): Promise<Settings> {
-  const r = await fetch(`${API_BASE}/api/settings`, {
+  const r = await fetch(`${getApiBase()}/api/settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
