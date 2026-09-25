@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     mode: TradingMode = Field(default=TradingMode.SANDBOX, alias="TASTYAGENT_MODE")
+    api_host: str = Field(default="127.0.0.1", alias="TASTYAGENT_HOST")
+    api_port: int = Field(default=3060, alias="TASTYAGENT_PORT")
 
     # IBKR Connection & Trading (default to local gateway / TWS)
     ibkr_host: str = Field(default="127.0.0.1", alias="IBKR_HOST")

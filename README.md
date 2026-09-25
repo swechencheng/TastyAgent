@@ -143,11 +143,11 @@ Open two terminal windows:
 # Terminal 1 — FastAPI Backend
 cd backend
 source .venv/bin/activate
-uvicorn tastyagent.api.app:app --port 8000
+uvicorn tastyagent.api.app:app --port 3060
 
 # Terminal 2 — Next.js Dashboard
 cd frontend
-npm run dev                          # Open http://localhost:3000
+npm run dev                          # Open http://localhost:3066
 ```
 
 ### Dashboard Features
