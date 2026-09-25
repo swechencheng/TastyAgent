@@ -48,7 +48,7 @@ export default function EquityChart({ data }: { data: Benchmark }) {
           formatter={(v: number) => `$${v.toLocaleString()}`}
         />
         <Legend />
-        <Line type="monotone" dataKey="strategy" name="TastyAgent" stroke="#4c9aff" dot={false} strokeWidth={2} />
+        <Line type="monotone" dataKey="strategy" name="IBTastyAgent" stroke="#4c9aff" dot={false} strokeWidth={2} />
         <Line type="monotone" dataKey="sp500" name="S&P 500" stroke="#f0a500" dot={false} strokeWidth={2} />
       </LineChart>
     </ResponsiveContainer>

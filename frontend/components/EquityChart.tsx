@@ -32,7 +32,7 @@ export default function EquityChart({ data }: { data: Benchmark }) {
     <div>
       <div className="mb-2 flex items-center gap-[18px] text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-2">
-          <i className="inline-block h-[3px] w-3 rounded-sm bg-brand align-middle" /> TastyAgent
+          <i className="inline-block h-[3px] w-3 rounded-sm bg-brand align-middle" /> IBTastyAgent
         </span>
         <span className="inline-flex items-center gap-2">
           <i className="inline-block h-[3px] w-3 rounded-sm bg-muted-foreground align-middle" /> S&amp;P 500

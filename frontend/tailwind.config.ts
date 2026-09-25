@@ -48,7 +48,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // ---- TastyAgent semantic tokens ----
+        // ---- IBTastyAgent semantic tokens ----
         surface: "hsl(var(--surface))",
         "surface-2": "hsl(var(--surface-2))",
         "border-strong": "hsl(var(--border-strong))",

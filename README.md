@@ -1,6 +1,6 @@
-# TastyAgent
+# IBTastyAgent
 
-An autonomous AI options-trading agent implementing **tastytrade's premium-selling methodology** executed directly via a local **Interactive Brokers (IBKR) Gateway / TWS** using [`ib_async`](https://github.com/ib-api-reloaded/ib_async). Deterministic tastytrade mechanics act as unyielding guardrails; an OpenRouter LLM (default: `deepseek/deepseek-v4.1-flash`) provides an adaptive selection and sizing layer *within* those rails.
+An autonomous AI options-trading agent implementing **tastytrade's premium-selling methodology** executed directly via a local **Interactive Brokers (IBKR) Gateway / TWS** using [`ib_async`](https://github.com/ib-api-reloaded/ib_async). Deterministic tastytrade mechanics act as unyielding guardrails; an OpenRouter LLM (default: `deepseek/deepseek-v4.1-flash`) provides an adaptive selection and sizing layer _within_ those rails.
 
 The agent features native IBKR Market Scanner universe discovery, 1-year historical Implied Volatility (IV) Rank calculation with daily SQLite caching, spread-protective walk-the-book order execution, pre-attached 50% Take-Profit GTC limit orders, strict position isolation (so other portfolio positions are never affected), and a real-time Next.js dashboard.
 
@@ -74,7 +74,7 @@ Position Lifecycle & Isolation ── Strict orderRef tracking · 50% TP monitor
    - Auto-attaches a 50% Take-Profit GTC limit order (`action="SELL"`, `lmtPrice = -0.50 * credit_per_share`) upon fill.
 8. **Position Lifecycle Management & Strict Isolation (`backend/tastyagent/execution/exit_manager.py`, `backend/tastyagent/portfolio/ledger.py`)**:
    - **Isolation**: Tags all orders and positions with unique identifiers: `orderRef="TastyAgent_{trade_id}"`. The agent never touches or interferes with manual positions or trades from other strategies on the account.
-   - **Audit**: Continuously audits open TastyAgent positions; if any position lacks an active take-profit order, an alert is surfaced immediately.
+   - **Audit**: Continuously audits open IBTastyAgent positions; if any position lacks an active take-profit order, an alert is surfaced immediately.
    - **Defense**: Monitors positions at 21 DTE for standard rolling, or rolls the untested side when a short strike is breached.
 
 ---
@@ -83,7 +83,7 @@ Position Lifecycle & Isolation ── Strict orderRef tracking · 50% TP monitor
 
 - **Python 3.11+** and **Node.js 20+**
 - **Interactive Brokers Gateway or TWS** running locally or on your local network:
-  - API enabled in Gateway/TWS settings (*Settings → API → Settings → Enable ActiveX and Socket Clients*).
+  - API enabled in Gateway/TWS settings (_Settings → API → Settings → Enable ActiveX and Socket Clients_).
   - Socket Port configured (default: `4002` for Paper, `4001` for Live).
   - Trusted IP: ensure `127.0.0.1` (or your client host IP) is added to trusted IP addresses.
 - **OpenRouter API Key** (for adaptive trade selection; default model: `deepseek/deepseek-v4.1-flash`).
@@ -106,25 +106,25 @@ cp .env.example .env                 # Configure your credentials
 
 Edit `backend/.env` (this file is gitignored — never commit real secrets):
 
-| Variable | Description | Default |
-|---|---|---|
-| `TASTYAGENT_MODE` | `sandbox` (paper auto-place), `live_approval`, `live_auto` | `sandbox` |
-| `TASTYAGENT_WORKING_CAPITAL` | Simulated capital base to size trades against ($) | `10000.0` |
-| `IBKR_HOST` | Host IP for trading IBKR Gateway / TWS | `127.0.0.1` |
-| `IBKR_PORT` | Socket port for trading gateway (`4002` paper, `4001` live) | `4002` |
-| `IBKR_CLIENT_ID` | Unique client ID for trading connection | `45` |
-| `IBKR_ACCOUNT` | IBKR Account ID (e.g. `DU123456` or `U1234567`) | *(optional, auto-detects)* |
-| `IBKR_DATA_HOST` | Market data gateway host (if using dual gateway) | `127.0.0.1` |
-| `IBKR_DATA_PORT` | Market data gateway port (e.g. `4001` live data) | `4001` |
-| `IBKR_DATA_CLIENT_ID` | Dedicated client ID for market data streaming | `46` |
-| `IBKR_SCAN_CODE` | IBKR Market Scanner code | `OPT_VOLUME_MOST_ACTIVE` |
-| `IBKR_SCAN_ROWS` | Number of top symbols to fetch from scanner | `25` |
-| `IBKR_WALK_STEP` | Repricing increment for walk-the-book ($) | `0.01` |
-| `IBKR_WALK_INTERVAL` | Seconds to wait between walk-the-book price adjustments | `5` |
-| `IBKR_ATTACH_TP` | Whether to automatically submit 50% Take Profit order | `true` |
-| `IBKR_TP_PCT` | Take profit target percentage | `0.50` |
-| `OPENROUTER_API_KEY` | Your OpenRouter API key | *(required)* |
-| `OPENROUTER_MODEL` | LLM model for trade selection | `deepseek/deepseek-v4.1-flash` |
+| Variable                     | Description                                                 | Default                        |
+| ---------------------------- | ----------------------------------------------------------- | ------------------------------ |
+| `TASTYAGENT_MODE`            | `sandbox` (paper auto-place), `live_approval`, `live_auto`  | `sandbox`                      |
+| `TASTYAGENT_WORKING_CAPITAL` | Simulated capital base to size trades against ($)           | `10000.0`                      |
+| `IBKR_HOST`                  | Host IP for trading IBKR Gateway / TWS                      | `127.0.0.1`                    |
+| `IBKR_PORT`                  | Socket port for trading gateway (`4002` paper, `4001` live) | `4002`                         |
+| `IBKR_CLIENT_ID`             | Unique client ID for trading connection                     | `45`                           |
+| `IBKR_ACCOUNT`               | IBKR Account ID (e.g. `DU123456` or `U1234567`)             | _(optional, auto-detects)_     |
+| `IBKR_DATA_HOST`             | Market data gateway host (if using dual gateway)            | `127.0.0.1`                    |
+| `IBKR_DATA_PORT`             | Market data gateway port (e.g. `4001` live data)            | `4001`                         |
+| `IBKR_DATA_CLIENT_ID`        | Dedicated client ID for market data streaming               | `46`                           |
+| `IBKR_SCAN_CODE`             | IBKR Market Scanner code                                    | `OPT_VOLUME_MOST_ACTIVE`       |
+| `IBKR_SCAN_ROWS`             | Number of top symbols to fetch from scanner                 | `25`                           |
+| `IBKR_WALK_STEP`             | Repricing increment for walk-the-book ($)                   | `0.01`                         |
+| `IBKR_WALK_INTERVAL`         | Seconds to wait between walk-the-book price adjustments     | `5`                            |
+| `IBKR_ATTACH_TP`             | Whether to automatically submit 50% Take Profit order       | `true`                         |
+| `IBKR_TP_PCT`                | Take profit target percentage                               | `0.50`                         |
+| `OPENROUTER_API_KEY`         | Your OpenRouter API key                                     | _(required)_                   |
+| `OPENROUTER_MODEL`           | LLM model for trade selection                               | `deepseek/deepseek-v4.1-flash` |
 
 ### 3. Frontend
 
@@ -151,6 +151,7 @@ npm run dev                          # Open http://localhost:3066
 ```
 
 ### Dashboard Features
+
 - **Run Cycle**: Triggers an on-demand decision cycle.
 - **Auto Mode**: Enables market-hours autonomous scheduling.
 - **Kill Switch**: Instantly freezes all new order entries.
@@ -162,15 +163,15 @@ npm run dev                          # Open http://localhost:3066
 
 ## CLI Diagnostic Tools (`backend/scripts/`)
 
-| Script | Purpose |
-|---|---|
-| `check_ibkr.py` | Tests connectivity to IBKR trading and data gateways, verifies account balances, positions, and order isolation. |
-| `check_scanner.py` | Runs IBKR Market Scanner (`OPT_VOLUME_MOST_ACTIVE`) and lists active symbols. |
-| `check_metrics.py` | Computes 1-year historical IV Rank & Percentile for test symbols and verifies SQLite cache performance. |
-| `check_candidates.py` | Fetches live IBKR option chains and Greeks, generating candidate spreads/strangles with guardrail diagnostics. |
-| `check_llm.py` | Verifies OpenRouter connectivity and tests structured JSON selection with DeepSeek. |
-| `run_cycle.py` | Executes one full autonomous cycle against IBKR from the command line. |
-| `reset.py` | Safely cancels all TastyAgent working orders (without touching external orders) and resets the local DB. |
+| Script                | Purpose                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `check_ibkr.py`       | Tests connectivity to IBKR trading and data gateways, verifies account balances, positions, and order isolation. |
+| `check_scanner.py`    | Runs IBKR Market Scanner (`OPT_VOLUME_MOST_ACTIVE`) and lists active symbols.                                    |
+| `check_metrics.py`    | Computes 1-year historical IV Rank & Percentile for test symbols and verifies SQLite cache performance.          |
+| `check_candidates.py` | Fetches live IBKR option chains and Greeks, generating candidate spreads/strangles with guardrail diagnostics.   |
+| `check_llm.py`        | Verifies OpenRouter connectivity and tests structured JSON selection with DeepSeek.                              |
+| `run_cycle.py`        | Executes one full autonomous cycle against IBKR from the command line.                                           |
+| `reset.py`            | Safely cancels all IBTastyAgent working orders (without touching external orders) and resets the local DB.       |
 
 ---
 
@@ -183,6 +184,7 @@ cd backend
 source .venv/bin/activate
 pytest -q
 ```
+
 All 118 unit tests validate guardrails, sizing, IBKR order generation, combo pricing mechanics, walk-the-book repricing, take-profit attachment, and risk limits.
 
 ---

@@ -1,0 +1,11 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 88.4" fill="none">
+  <defs>
+    <linearGradient id="SVGID_1_ICON" gradientUnits="userSpaceOnUse" x1="3633.335" y1="66.0445" x2="3671.0737" y2="66.0445" gradientTransform="matrix(-1 0 0 1 3673.7529 0)">
+      <stop offset="0" stop-color="#D71F27"/>
+      <stop offset="1" stop-color="#971B1E"/>
+    </linearGradient>
+  </defs>
+  <polygon fill="url(#SVGID_1_ICON)" points="40.4,86.8 2.7,86.8 2.7,45.3 "/>
+  <circle fill="#D71F27" cx="35.2" cy="55.5" r="11.3"/>
+  <polygon fill="#D71F27" points="40.4,1.5 2.7,45.3 2.7,86.8 "/>
+</svg>

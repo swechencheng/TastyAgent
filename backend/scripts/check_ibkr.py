@@ -20,9 +20,13 @@ from tastyagent.settings import load_settings  # noqa: E402
 async def main() -> None:
     settings = load_settings()
     print("Connecting to IBKR Gateway / TWS...")
-    print(f"  Trading session: {settings.ibkr_host}:{settings.ibkr_port} (clientId={settings.ibkr_client_id})")
+    print(
+        f"  Trading session: {settings.ibkr_host}:{settings.ibkr_port} (clientId={settings.ibkr_client_id})"
+    )
     if settings.ibkr_data_port:
-        print(f"  Market data session: {settings.ibkr_data_host}:{settings.ibkr_data_port} (clientId={settings.ibkr_data_client_id})")
+        print(
+            f"  Market data session: {settings.ibkr_data_host}:{settings.ibkr_data_port} (clientId={settings.ibkr_data_client_id})"
+        )
 
     client = IBKRClient(settings)
     try:
@@ -36,7 +40,13 @@ async def main() -> None:
         # Account Summary / Balances
         print("\n--- Account Balances ---")
         av = client.trading_ib.accountValues(client.account)
-        summary_tags = {"NetLiquidation", "TotalCashValue", "BuyingPower", "FullInitMarginReq", "FullMaintMarginReq"}
+        summary_tags = {
+            "NetLiquidation",
+            "TotalCashValue",
+            "BuyingPower",
+            "FullInitMarginReq",
+            "FullMaintMarginReq",
+        }
         for item in av:
             if item.tag in summary_tags:
                 print(f"  {item.tag:<22} ({item.currency}): {item.value}")
@@ -45,7 +55,9 @@ async def main() -> None:
         positions = client.trading_ib.positions(client.account)
         print(f"\n--- Open Positions ({len(positions)}) ---")
         for p in positions:
-            print(f"  {p.contract.symbol:<6} {p.contract.secType:<5} {p.position:>6} @ {p.avgCost:>.2f}")
+            print(
+                f"  {p.contract.symbol:<6} {p.contract.secType:<5} {p.position:>6} @ {p.avgCost:>.2f}"
+            )
 
         # Open Orders
         open_trades = client.trading_ib.openTrades()
@@ -53,9 +65,11 @@ async def main() -> None:
         for t in open_trades:
             ref = getattr(t.order, "orderRef", "")
             is_ta = ref.startswith("TastyAgent_")
-            tag = "[TastyAgent]" if is_ta else "[External]"
-            print(f"  {tag} ID={t.order.orderId} {t.contract.symbol} {t.order.action} {t.order.totalQuantity} "
-                  f"{t.order.orderType} status={t.orderStatus.status} ref={ref!r}")
+            tag = "[IBTastyAgent]" if is_ta else "[External]"
+            print(
+                f"  {tag} ID={t.order.orderId} {t.contract.symbol} {t.order.action} {t.order.totalQuantity} "
+                f"{t.order.orderType} status={t.orderStatus.status} ref={ref!r}"
+            )
 
     finally:
         await client.disconnect()

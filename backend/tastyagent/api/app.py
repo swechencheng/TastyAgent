@@ -77,7 +77,7 @@ def create_app(
     client=None,
     metrics_session=None,
 ) -> FastAPI:
-    app = FastAPI(title="TastyAgent", version="0.1.0")
+    app = FastAPI(title="IBTastyAgent", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -137,7 +137,9 @@ def create_app(
         return [TradeOut.model_validate(t) for t in Ledger(s).pending_approval()]
 
     @app.get("/api/pnl", response_model=PnLOut)
-    def pnl(s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)) -> PnLOut:
+    def pnl(
+        s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+    ) -> PnLOut:
         summary = summarize(Ledger(s).all_trades())
         return PnLOut(
             realized_pnl=summary.realized_pnl,
@@ -157,7 +159,9 @@ def create_app(
         snaps = list(s.scalars(select(EquitySnapshot).order_by(EquitySnapshot.ts)))
         equity_curve = [(snap.ts.date(), snap.net_liq) for snap in snaps]
         sp_curve: list[tuple[date, float]] = [
-            (snap.ts.date(), snap.sp500_close) for snap in snaps if snap.sp500_close is not None
+            (snap.ts.date(), snap.sp500_close)
+            for snap in snaps
+            if snap.sp500_close is not None
         ]
         # If we didn't persist S&P alongside snapshots, try a live fetch for the range.
         if equity_curve and not sp_curve:
@@ -170,7 +174,9 @@ def create_app(
             strategy_return_pct=cmp.strategy_return_pct,
             sp500_return_pct=cmp.sp500_return_pct,
             outperformance_pct=cmp.outperformance_pct,
-            strategy_curve=[BenchmarkPoint(date=d, value=v) for d, v in cmp.strategy_curve],
+            strategy_curve=[
+                BenchmarkPoint(date=d, value=v) for d, v in cmp.strategy_curve
+            ],
             sp500_curve=[BenchmarkPoint(date=d, value=v) for d, v in cmp.sp500_curve],
         )
 
@@ -184,13 +190,17 @@ def create_app(
         return status(rt)
 
     @app.post("/api/kill-switch", response_model=StatusOut)
-    def kill_switch(req: KillSwitchRequest, rt: Runtime = Depends(get_runtime)) -> StatusOut:
+    def kill_switch(
+        req: KillSwitchRequest, rt: Runtime = Depends(get_runtime)
+    ) -> StatusOut:
         rt.kill_switch = req.engaged
         return status(rt)
 
     @app.post("/api/approvals/{trade_id}/approve", response_model=ActionResult)
     async def approve(
-        trade_id: int, s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+        trade_id: int,
+        s: Session = Depends(get_session),
+        rt: Runtime = Depends(get_runtime),
     ) -> ActionResult:
         ex = Executor(Ledger(s), rt.mode, rt.placer)
         out = await ex.approve(trade_id)
@@ -200,7 +210,9 @@ def create_app(
 
     @app.post("/api/approvals/{trade_id}/reject", response_model=ActionResult)
     def reject(
-        trade_id: int, s: Session = Depends(get_session), rt: Runtime = Depends(get_runtime)
+        trade_id: int,
+        s: Session = Depends(get_session),
+        rt: Runtime = Depends(get_runtime),
     ) -> ActionResult:
         out = Executor(Ledger(s), rt.mode, rt.placer).reject(trade_id)
         if out.action == "error":
@@ -242,8 +254,14 @@ def create_app(
             try:
                 await app.state.client.connect()
             except Exception as e:
-                logging.getLogger("tastyagent.api").warning("IBKR connection failed on startup: %s", e)
-        if os.environ.get("TASTYAGENT_AUTO_START_SCHEDULER", "false").lower() in ("1", "true", "yes"):
+                logging.getLogger("tastyagent.api").warning(
+                    "IBKR connection failed on startup: %s", e
+                )
+        if os.environ.get("TASTYAGENT_AUTO_START_SCHEDULER", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
             if not scheduler_running():
                 from ..scheduler import run_loop
 
@@ -266,7 +284,9 @@ def create_app(
             try:
                 await app.state.client.disconnect()
             except Exception as e:
-                logging.getLogger("tastyagent.api").debug("IBKR disconnect on shutdown: %s", e)
+                logging.getLogger("tastyagent.api").debug(
+                    "IBKR disconnect on shutdown: %s", e
+                )
 
     @app.post("/api/scheduler/start", response_model=StatusOut)
     async def scheduler_start(
@@ -283,8 +303,12 @@ def create_app(
             app.state.scheduler_task = asyncio.create_task(
                 run_loop(
                     _tick,
-                    interval_seconds=float(body.get("interval_seconds", rt.scheduler_interval_seconds)),
-                    market_hours_only=bool(body.get("market_hours_only", rt.scheduler_market_hours_only)),
+                    interval_seconds=float(
+                        body.get("interval_seconds", rt.scheduler_interval_seconds)
+                    ),
+                    market_hours_only=bool(
+                        body.get("market_hours_only", rt.scheduler_market_hours_only)
+                    ),
                     stop=stop,
                 )
             )
@@ -300,8 +324,14 @@ def create_app(
     @app.get("/api/watchlist", response_model=list[WatchlistItem])
     async def watchlist(s: Session = Depends(get_session)) -> list[WatchlistItem]:
         repo = WatchlistRepo(s)
-        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
-        if not repo.all() and data_ib is not None and getattr(data_ib, "isConnected", lambda: False)():
+        data_ib = (
+            getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        )
+        if (
+            not repo.all()
+            and data_ib is not None
+            and getattr(data_ib, "isConnected", lambda: False)()
+        ):
             from ..ibkr.scanner import scan_high_options_volume
 
             try:
@@ -314,7 +344,9 @@ def create_app(
         return [WatchlistItem.model_validate(e) for e in repo.all()]
 
     @app.post("/api/watchlist", response_model=WatchlistItem)
-    def watchlist_add(req: WatchlistAdd, s: Session = Depends(get_session)) -> WatchlistItem:
+    def watchlist_add(
+        req: WatchlistAdd, s: Session = Depends(get_session)
+    ) -> WatchlistItem:
         return WatchlistItem.model_validate(WatchlistRepo(s).add(req.symbol))
 
     @app.delete("/api/watchlist/{symbol}")
@@ -333,13 +365,17 @@ def create_app(
         return WatchlistItem.model_validate(entry)
 
     @app.post("/api/watchlist/import")
-    def watchlist_import(req: WatchlistImport, s: Session = Depends(get_session)) -> dict:
+    def watchlist_import(
+        req: WatchlistImport, s: Session = Depends(get_session)
+    ) -> dict:
         added = WatchlistRepo(s).import_symbols(req.symbols, req.source)
         return {"added": added}
 
     @app.get("/api/watchlist/ranked", response_model=list[RankedSymbol])
     async def watchlist_ranked(s: Session = Depends(get_session)) -> list[RankedSymbol]:
-        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        data_ib = (
+            getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        )
         if data_ib is None:
             raise HTTPException(503, "no market-metrics session configured")
         from ..ibkr.metrics import get_iv_metrics
@@ -352,18 +388,24 @@ def create_app(
             raise HTTPException(503, f"IV rank unavailable: {e}")
         items = [
             RankedSymbol(
-                symbol=m.symbol, iv_rank=m.iv_rank,
-                iv_percentile=m.iv_percentile, liquidity_rating=m.liquidity_rating,
+                symbol=m.symbol,
+                iv_rank=m.iv_rank,
+                iv_percentile=m.iv_percentile,
+                liquidity_rating=m.liquidity_rating,
             )
             for m in metrics.values()
         ]
-        items.sort(key=lambda x: (x.iv_rank if x.iv_rank is not None else -1.0), reverse=True)
+        items.sort(
+            key=lambda x: (x.iv_rank if x.iv_rank is not None else -1.0), reverse=True
+        )
         return items
 
     @app.get("/api/tastytrade-watchlists", response_model=list[TastytradeWatchlist])
     @app.get("/api/ibkr-scanner", response_model=list[TastytradeWatchlist])
     async def ibkr_scanner_watchlists() -> list[TastytradeWatchlist]:
-        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        data_ib = (
+            getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        )
         if data_ib is None:
             raise HTTPException(503, "no production session configured for watchlists")
         from ..ibkr.scanner import scan_high_options_volume
@@ -372,7 +414,11 @@ def create_app(
             symbols = await scan_high_options_volume(data_ib, num_rows=30)
         except Exception:
             symbols = DEFAULT_WATCHLIST
-        return [TastytradeWatchlist(name="High Options Volume (IBKR)", group="Popular", symbols=symbols)]
+        return [
+            TastytradeWatchlist(
+                name="High Options Volume (IBKR)", group="Popular", symbols=symbols
+            )
+        ]
 
     # --- settings (manage the agent's strategy / risk / capital / scheduler) ---
     def _settings_out(rt: Runtime) -> SettingsOut:
@@ -395,7 +441,9 @@ def create_app(
         return _settings_out(rt)
 
     @app.put("/api/settings", response_model=SettingsOut)
-    def put_settings(req: SettingsUpdate, rt: Runtime = Depends(get_runtime)) -> SettingsOut:
+    def put_settings(
+        req: SettingsUpdate, rt: Runtime = Depends(get_runtime)
+    ) -> SettingsOut:
         if req.working_capital is not None:
             if req.working_capital <= 0:
                 raise HTTPException(400, "working_capital must be > 0")
@@ -407,7 +455,9 @@ def create_app(
         if req.strategy:
             rt.strategy = _apply_updates(rt.strategy, req.strategy)
         if req.risk:
-            rt.risk = _apply_updates(rt.risk, {k: v for k, v in req.risk.items() if k != "kill_switch"})
+            rt.risk = _apply_updates(
+                rt.risk, {k: v for k, v in req.risk.items() if k != "kill_switch"}
+            )
         return _settings_out(rt)
 
     # --- activity (recent decision cycles + LLM rationale) ---
@@ -431,9 +481,13 @@ def create_app(
         )
 
     @app.get("/api/activity", response_model=list[ActivityItem])
-    def activity(limit: int = 25, s: Session = Depends(get_session)) -> list[ActivityItem]:
+    def activity(
+        limit: int = 25, s: Session = Depends(get_session)
+    ) -> list[ActivityItem]:
         decisions = list(
-            s.scalars(select(Decision).order_by(Decision.created_at.desc()).limit(limit))
+            s.scalars(
+                select(Decision).order_by(Decision.created_at.desc()).limit(limit)
+            )
         )
         # "Managed" actions (exits/rolls) aren't linked to a decision, so bucket
         # CLOSED trades into the cycle whose time window contains their close.
@@ -443,7 +497,9 @@ def create_app(
             closed = list(
                 s.scalars(
                     select(Trade)
-                    .where(Trade.status == TradeStatus.CLOSED, Trade.closed_at.is_not(None))
+                    .where(
+                        Trade.status == TradeStatus.CLOSED, Trade.closed_at.is_not(None)
+                    )
                     .where(Trade.closed_at >= oldest)
                     .order_by(Trade.closed_at)
                 )
@@ -455,7 +511,8 @@ def create_app(
             placed = [t for t in d.trades if t.status in PLACED_STATUSES]
             rejected = [t for t in d.trades if t.status is TradeStatus.REJECTED]
             managed = [
-                t for t in closed
+                t
+                for t in closed
                 if t.closed_at is not None
                 and t.closed_at >= d.created_at
                 and (newer_bound is None or t.closed_at < newer_bound)
@@ -465,14 +522,24 @@ def create_app(
             reasoning = []
             for t in placed:
                 if t.rationale:
-                    reasoning.append(ReasoningItem(symbol=t.symbol, text=t.rationale, tone="placed"))
+                    reasoning.append(
+                        ReasoningItem(symbol=t.symbol, text=t.rationale, tone="placed")
+                    )
             for t in rejected:
                 reasoning.append(
-                    ReasoningItem(symbol=t.symbol, text=t.rationale or "Rejected by guardrails.", tone="rejected")
+                    ReasoningItem(
+                        symbol=t.symbol,
+                        text=t.rationale or "Rejected by guardrails.",
+                        tone="rejected",
+                    )
                 )
             for t in managed:
                 reasoning.append(
-                    ReasoningItem(symbol=t.symbol, text=t.exit_reason or "Managed.", tone="managed")
+                    ReasoningItem(
+                        symbol=t.symbol,
+                        text=t.exit_reason or "Managed.",
+                        tone="managed",
+                    )
                 )
 
             planned = placed + rejected
@@ -491,14 +558,18 @@ def create_app(
                     planned_trades=[_act_trade(t) for t in planned],
                     placed_trades=[_act_trade(t) for t in placed],
                     rejected_trades=[_act_trade(t, t.rationale) for t in rejected],
-                    managed_trades=[_act_trade(t, t.exit_reason or "") for t in managed],
+                    managed_trades=[
+                        _act_trade(t, t.exit_reason or "") for t in managed
+                    ],
                 )
             )
         return items
 
     # --- live event feed (status changes -> toast / desktop notifications) ---
     @app.get("/api/events", response_model=list[EventFeedItem])
-    def events(after: int = 0, limit: int = 50, s: Session = Depends(get_session)) -> list[EventFeedItem]:
+    def events(
+        after: int = 0, limit: int = 50, s: Session = Depends(get_session)
+    ) -> list[EventFeedItem]:
         rows = list(
             s.scalars(
                 select(TradeEvent)

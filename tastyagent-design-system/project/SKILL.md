@@ -1,6 +1,6 @@
 ---
 name: tastyagent-design
-description: Use this skill to generate well-branded interfaces and assets for TastyAgent, either for production or throwaway prototypes/mocks/etc. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping.
+description: Use this skill to generate well-branded interfaces and assets for IBTastyAgent, either for production or throwaway prototypes/mocks/etc. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping.
 user-invocable: true
 ---
 
@@ -15,19 +15,21 @@ design, ask some questions, and act as an expert designer who outputs HTML artif
 production code, depending on the need.
 
 ## What's here
+
 - `README.md` — product context, CONTENT FUNDAMENTALS, VISUAL FOUNDATIONS, ICONOGRAPHY, and a
   file index. Start here.
 - `colors_and_type.css` — the token layer (color + type CSS vars and semantic classes). Import
-  this first in any TastyAgent artifact.
+  this first in any IBTastyAgent artifact.
 - `fonts/` — Inter + JetBrains Mono (Google Fonts) setup + self-hosting note.
-- `assets/` — the TastyAgent wordmark SVG.
+- `assets/` — the IBTastyAgent wordmark SVG.
 - `preview/` — small reference cards for colors, type, spacing, components, brand.
 - `ui_kits/dashboard/` — a high-fidelity, interactive recreation of the control panel
   (status bar, sidebar, Overview/Positions/Watchlist/Activity/Settings, dialogs, toasts).
   Lift components from here; mock data + API shapes are in `components.jsx`.
-- `_source/frontend/` — reference code imported from `github.com/brandons17563/TastyAgent`.
+- `_source/frontend/` — reference code imported from `github.com/brandons17563/IBTastyAgent`.
 
 ## Non-negotiables (the brand in one breath)
+
 - Dark only. Near-black canvas `#0A0A0B`, pure-black chrome, white text, **tastytrade red
   `#E4002B`**. Red **fills = actions/danger**; red **text = negative P/L** (use the brighter
   `#FF4D6A`). Gains `#16C784`.

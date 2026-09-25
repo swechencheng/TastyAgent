@@ -9,7 +9,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "TastyAgent",
+  title: "IBTastyAgent",
   description: "AI options-trading agent — monitor & manage",
 };
 

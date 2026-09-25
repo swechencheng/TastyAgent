@@ -5,43 +5,59 @@
 @tailwind utilities;
 
 /* ============================================================================
-   TastyAgent design tokens — tastytrade black / white / red. Dark only.
+   IBTastyAgent design tokens — tastytrade black / white / red. Dark only.
    Expressed in the shadcn/ui CSS-variable convention (HSL channels).
    ========================================================================== */
 @layer base {
   :root {
-    --background: 240 6% 4%;        /* #0A0A0B canvas              */
-    --foreground: 0 0% 100%;        /* #FFFFFF                     */
-    --card: 240 7% 8%;              /* #141417 surface             */
+    --background: 240 6% 4%;
+    /* #0A0A0B canvas              */
+    --foreground: 0 0% 100%;
+    /* #FFFFFF                     */
+    --card: 240 7% 8%;
+    /* #141417 surface             */
     --card-foreground: 0 0% 100%;
     --popover: 240 7% 8%;
     --popover-foreground: 0 0% 100%;
-    --primary: 349 100% 45%;        /* #E4002B tastytrade red      */
+    --primary: 349 100% 45%;
+    /* #E4002B tastytrade red      */
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 8% 12%;        /* #1C1C21 surface-2           */
+    --secondary: 240 8% 12%;
+    /* #1C1C21 surface-2           */
     --secondary-foreground: 0 0% 100%;
     --muted: 240 8% 12%;
-    --muted-foreground: 240 5% 62%; /* #9A9AA4                     */
+    --muted-foreground: 240 5% 62%;
+    /* #9A9AA4                     */
     --accent: 240 8% 12%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 349 100% 45%;    /* danger fills = brand red    */
+    --destructive: 349 100% 45%;
+    /* danger fills = brand red    */
     --destructive-foreground: 0 0% 100%;
-    --border: 240 7% 18%;           /* #2A2A30 hairline            */
+    --border: 240 7% 18%;
+    /* #2A2A30 hairline            */
     --input: 240 7% 18%;
     --ring: 349 100% 45%;
-    --radius: 0.5rem;               /* 8px inputs/buttons; cards rounded-xl=12px */
+    --radius: 0.5rem;
+    /* 8px inputs/buttons; cards rounded-xl=12px */
 
-    /* TastyAgent semantic extensions */
+    /* IBTastyAgent semantic extensions */
     --surface: 240 7% 8%;
     --surface-2: 240 8% 12%;
-    --border-strong: 240 8% 24%;    /* #3A3A42                     */
-    --text-faint: 240 5% 44%;       /* #6B6B74                     */
+    --border-strong: 240 8% 24%;
+    /* #3A3A42                     */
+    --text-faint: 240 5% 44%;
+    /* #6B6B74                     */
     --brand: 349 100% 45%;
-    --brand-hover: 349 100% 56%;    /* #FF1F47                     */
-    --gain: 157 67% 43%;            /* #16C784                     */
-    --loss: 350 100% 65%;           /* #FF4D6A                     */
-    --warn: 41 100% 47%;            /* #F0A500                     */
-    --info: 213 100% 65%;           /* #4C9AFF                     */
+    --brand-hover: 349 100% 56%;
+    /* #FF1F47                     */
+    --gain: 157 67% 43%;
+    /* #16C784                     */
+    --loss: 350 100% 65%;
+    /* #FF4D6A                     */
+    --warn: 41 100% 47%;
+    /* #F0A500                     */
+    --info: 213 100% 65%;
+    /* #4C9AFF                     */
   }
 }
 
@@ -49,12 +65,14 @@
   * {
     @apply border-border;
   }
+
   html,
   body {
     @apply bg-background text-foreground font-sans antialiased;
     max-width: 100vw;
     overflow-x: hidden;
   }
+
   /* tabular figures for all monospace numbers */
   .font-mono {
     font-variant-numeric: tabular-nums;
@@ -66,20 +84,36 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 @layer components {
+
   /* Soft 13%-alpha tints used behind chips and the equity area */
-  .bg-gain-soft { background-color: hsl(var(--gain) / 0.13); }
-  .bg-loss-soft { background-color: hsl(var(--loss) / 0.13); }
-  .bg-warn-soft { background-color: hsl(var(--warn) / 0.13); }
-  .bg-brand-soft { background-color: hsl(var(--brand) / 0.13); }
+  .bg-gain-soft {
+    background-color: hsl(var(--gain) / 0.13);
+  }
+
+  .bg-loss-soft {
+    background-color: hsl(var(--loss) / 0.13);
+  }
+
+  .bg-warn-soft {
+    background-color: hsl(var(--warn) / 0.13);
+  }
+
+  .bg-brand-soft {
+    background-color: hsl(var(--brand) / 0.13);
+  }
 
   /* The one piece of perpetual motion — the live "●" pulse */
-  .live-dot { position: relative; }
+  .live-dot {
+    position: relative;
+  }
+
   .live-dot::after {
     content: "";
     position: absolute;
@@ -89,14 +123,24 @@
     opacity: 0.4;
     animation: ta-pulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
+
   @keyframes ta-pulse {
-    0% { transform: scale(.6); opacity: .5; }
-    100% { transform: scale(1.8); opacity: 0; }
+    0% {
+      transform: scale(.6);
+      opacity: .5;
+    }
+
+    100% {
+      transform: scale(1.8);
+      opacity: 0;
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, .live-dot::after {
+
+  *,
+  .live-dot::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

@@ -31,7 +31,7 @@ DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
 SYSTEM_PROMPT = """\
-You are the trade-selection layer of TastyAgent, an options-trading agent that \
+You are the trade-selection layer of IBTastyAgent, an options-trading agent that \
 mechanically applies tastytrade's premium-selling methodology. You are given a set \
 of candidate trades that have ALREADY passed the agent's hard risk guardrails, plus \
 the current portfolio and market regime. Your job: choose which candidates to open \
@@ -89,7 +89,9 @@ class LLMTradeSelection(BaseModel):
 
     candidate_id: str = Field(description="The id of the chosen candidate (verbatim).")
     contracts: int = Field(ge=1, description="Number of contracts to open.")
-    rationale: str = Field(description="Concise reason for the trade, citing mechanics.")
+    rationale: str = Field(
+        description="Concise reason for the trade, citing mechanics."
+    )
 
 
 class LLMDecision(BaseModel):
@@ -116,7 +118,9 @@ def _candidate_payload(candidate: CandidateTrade, cid: str) -> dict:
         "iv_rank": round(candidate.iv_rank, 3),
         "net_credit": round(candidate.net_credit, 2),
         "max_profit": round(candidate.max_profit, 2),
-        "max_loss": (None if candidate.max_loss == float("inf") else round(candidate.max_loss, 2)),
+        "max_loss": (
+            None if candidate.max_loss == float("inf") else round(candidate.max_loss, 2)
+        ),
         "buying_power_per_contract": round(candidate.buying_power_reduction, 2),
         "underlying_price": round(candidate.underlying_price, 2),
         "max_short_leg_delta": round(candidate.max_short_leg_delta, 3),
@@ -196,11 +200,17 @@ async def select_trades(
         api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
         if not api_key:
             logger.warning("OPENROUTER_API_KEY is not set. Returning empty selection.")
-            return LLMDecision(selections=[], commentary="OPENROUTER_API_KEY not set in environment."), id_map
+            return (
+                LLMDecision(
+                    selections=[],
+                    commentary="OPENROUTER_API_KEY not set in environment.",
+                ),
+                id_map,
+            )
 
         headers = {}
         site_url = os.environ.get("OPENROUTER_SITE_URL")
-        app_name = os.environ.get("OPENROUTER_APP_NAME", "TastyAgent")
+        app_name = os.environ.get("OPENROUTER_APP_NAME", "IBTastyAgent")
         if site_url:
             headers["HTTP-Referer"] = site_url
         if app_name:

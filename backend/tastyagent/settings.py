@@ -16,7 +16,9 @@ from .config import RiskLimits, StrategyParams, TradingMode
 
 
 class _StrategyEnv(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TASTYAGENT_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="TASTYAGENT_", env_file=".env", extra="ignore"
+    )
     min_iv_rank: float | None = None
     min_dte: int | None = None
     max_dte: int | None = None
@@ -32,7 +34,9 @@ class _StrategyEnv(BaseSettings):
 
 
 class _RiskEnv(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TASTYAGENT_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="TASTYAGENT_", env_file=".env", extra="ignore"
+    )
     max_trade_bp_pct: float | None = None
     max_total_bp_pct: float | None = None
     max_positions: int | None = None
@@ -71,7 +75,9 @@ class Settings(BaseSettings):
     ibkr_data_client_id: int = Field(default=56, alias="IBKR_DATA_CLIENT_ID")
 
     # IBKR Market Scanner & Execution
-    ibkr_scan_code: str = Field(default="OPT_VOLUME_MOST_ACTIVE", alias="IBKR_SCAN_CODE")
+    ibkr_scan_code: str = Field(
+        default="OPT_VOLUME_MOST_ACTIVE", alias="IBKR_SCAN_CODE"
+    )
     ibkr_scan_rows: int = Field(default=25, alias="IBKR_SCAN_ROWS")
     ibkr_walk_step: float = Field(default=0.01, alias="IBKR_WALK_STEP")
     ibkr_walk_interval: int = Field(default=5, alias="IBKR_WALK_INTERVAL")
@@ -85,9 +91,12 @@ class Settings(BaseSettings):
         default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
     )
     openrouter_site_url: str = Field(
-        default="https://github.com/swechencheng/TastyAgent", alias="OPENROUTER_SITE_URL"
+        default="https://github.com/swechencheng/IBTastyAgent",
+        alias="OPENROUTER_SITE_URL",
     )
-    openrouter_app_name: str = Field(default="TastyAgent", alias="OPENROUTER_APP_NAME")
+    openrouter_app_name: str = Field(
+        default="IBTastyAgent", alias="OPENROUTER_APP_NAME"
+    )
     # Capital the agent sizes against. The sandbox account seeds at ~$1M with no
     # withdrawal endpoint, so the agent simulates this working capital instead.
     working_capital: float = Field(default=10_000.0, alias="TASTYAGENT_WORKING_CAPITAL")

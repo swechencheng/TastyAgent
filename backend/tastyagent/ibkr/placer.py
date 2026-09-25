@@ -88,7 +88,12 @@ class IBKRPlacer:
     async def __call__(self, trade: Trade) -> str:
         """Open a position for net credit with walk-the-book and attach Take Profit."""
         logger.info("\n" + "=" * 60)
-        logger.info("  🚀 TastyAgent IBKR Placer — Opening Trade #%s (%s %s)", trade.id, trade.symbol, trade.strategy)
+        logger.info(
+            "  🚀 IBTastyAgent IBKR Placer — Opening Trade #%s (%s %s)",
+            trade.id,
+            trade.symbol,
+            trade.strategy,
+        )
         logger.info("=" * 60)
 
         # 1. Qualify all legs
@@ -97,7 +102,14 @@ class IBKRPlacer:
             opt = await self._qualify_leg(trade.symbol, leg)
             action = _LEG_ACTION_MAP.get(leg.action, "SELL")
             leg_pairs.append((opt, action))
-            logger.info("    Leg: %s %s Strike=%.2f Exp=%s -> %s", opt.symbol, opt.right, opt.strike, opt.lastTradeDateOrContractMonth, action)
+            logger.info(
+                "    Leg: %s %s Strike=%.2f Exp=%s -> %s",
+                opt.symbol,
+                opt.right,
+                opt.strike,
+                opt.lastTradeDateOrContractMonth,
+                action,
+            )
 
         # 2. Build BAG contract
         combo = build_combo_contract(trade.symbol, leg_pairs)
@@ -105,14 +117,27 @@ class IBKRPlacer:
         # 3. Calculate initial credit & floor
         target_credit = trade.entry_credit / (100 * trade.contracts)
         current_credit = round(float(target_credit), 2)
-        min_credit = max(0.05, round(current_credit * 0.70, 2))  # Walk floor: collect at least 70% of initial estimate
+        min_credit = max(
+            0.05, round(current_credit * 0.70, 2)
+        )  # Walk floor: collect at least 70% of initial estimate
 
-        logger.info("  Target Credit: $%.2f | Min Floor: $%.2f | Walk Step: $%.2f | Interval: %ds", current_credit, min_credit, self.walk_step, self.walk_interval)
+        logger.info(
+            "  Target Credit: $%.2f | Min Floor: $%.2f | Walk Step: $%.2f | Interval: %ds",
+            current_credit,
+            min_credit,
+            self.walk_step,
+            self.walk_interval,
+        )
 
         order_ref = f"TastyAgent_{trade.id}"
 
         # 4. Optional Margin Preflight
-        preflight_order = build_opening_credit_order(trade.contracts, current_credit, account=self.client.account, order_ref=order_ref)
+        preflight_order = build_opening_credit_order(
+            trade.contracts,
+            current_credit,
+            account=self.client.account,
+            order_ref=order_ref,
+        )
         await check_margin_preflight(self.ib, combo, preflight_order)
 
         # 5. Walk-the-book Execution Loop
@@ -125,13 +150,25 @@ class IBKRPlacer:
                 m = re.search(r"current market price of (-?\d+\.?\d*)", errorString)
                 if m:
                     rejected_market_price = abs(float(m.group(1)))
-                    logger.info("  [Auto-Healing] Detected market price suggestion from IBKR: $%.2f", rejected_market_price)
+                    logger.info(
+                        "  [Auto-Healing] Detected market price suggestion from IBKR: $%.2f",
+                        rejected_market_price,
+                    )
 
         self.ib.errorEvent += _on_error
 
-        order = build_opening_credit_order(trade.contracts, current_credit, account=self.client.account, order_ref=order_ref)
+        order = build_opening_credit_order(
+            trade.contracts,
+            current_credit,
+            account=self.client.account,
+            order_ref=order_ref,
+        )
         parent_trade = self.ib.placeOrder(combo, order)
-        logger.info("  📤 Order #%d submitted: BUY combo @ -$%.2f credit", order.orderId, current_credit)
+        logger.info(
+            "  📤 Order #%d submitted: BUY combo @ -$%.2f credit",
+            order.orderId,
+            current_credit,
+        )
 
         try:
             while True:
@@ -140,14 +177,23 @@ class IBKRPlacer:
 
                 status = parent_trade.orderStatus.status
                 filled_qty = parent_trade.orderStatus.filled
-                logger.info("  ⏱  Order status: %s (Filled: %s/%s)", status, filled_qty, trade.contracts)
+                logger.info(
+                    "  ⏱  Order status: %s (Filled: %s/%s)",
+                    status,
+                    filled_qty,
+                    trade.contracts,
+                )
 
                 # Check for fill (status 'Filled' or filled quantity reached)
                 if status == "Filled" or filled_qty >= trade.contracts:
                     fill_credit = abs(parent_trade.orderStatus.avgFillPrice)
                     if fill_credit == 0.0:
                         fill_credit = current_credit
-                    logger.info("  ✅ Filled! Received credit: $%.2f/share ($%.2f total)", fill_credit, fill_credit * 100 * trade.contracts)
+                    logger.info(
+                        "  ✅ Filled! Received credit: $%.2f/share ($%.2f total)",
+                        fill_credit,
+                        fill_credit * 100 * trade.contracts,
+                    )
 
                     # Update trade entry credit to actual fill
                     trade.entry_credit = round(fill_credit * 100 * trade.contracts, 2)
@@ -164,47 +210,87 @@ class IBKRPlacer:
                             transmit=True,
                         )
                         tp_trade = self.ib.placeOrder(combo, tp_order)
-                        assigned_tp_id = getattr(getattr(tp_trade, "order", None), "orderId", None) or tp_order.orderId
+                        assigned_tp_id = (
+                            getattr(getattr(tp_trade, "order", None), "orderId", None)
+                            or tp_order.orderId
+                        )
                         trade.tp_order_id = str(assigned_tp_id)
-                        logger.info("  🎯 Attached Take-Profit order #%s submitted: SELL combo @ -$%.2f debit (50%% profit target)", trade.tp_order_id, tp_debit)
+                        logger.info(
+                            "  🎯 Attached Take-Profit order #%s submitted: SELL combo @ -$%.2f debit (50%% profit target)",
+                            trade.tp_order_id,
+                            tp_debit,
+                        )
 
                     return str(parent_trade.order.orderId)
 
                 # Check if order was rejected / cancelled
                 if status in ("Cancelled", "ApiCancelled", "Inactive"):
-                    if rejected_market_price is not None and rejected_market_price >= min_credit:
+                    if (
+                        rejected_market_price is not None
+                        and rejected_market_price >= min_credit
+                    ):
                         current_credit = round(rejected_market_price, 2)
                         rejected_market_price = None
-                        logger.info("  🔄 Auto-healing: restarting walk-the-book from market price $%.2f", current_credit)
-                        order = build_opening_credit_order(trade.contracts, current_credit, account=self.client.account, order_ref=order_ref)
+                        logger.info(
+                            "  🔄 Auto-healing: restarting walk-the-book from market price $%.2f",
+                            current_credit,
+                        )
+                        order = build_opening_credit_order(
+                            trade.contracts,
+                            current_credit,
+                            account=self.client.account,
+                            order_ref=order_ref,
+                        )
                         parent_trade = self.ib.placeOrder(combo, order)
                         continue
 
-                    logger.error("  ❌ Order was cancelled or rejected by IBKR (Status: %s)", status)
+                    logger.error(
+                        "  ❌ Order was cancelled or rejected by IBKR (Status: %s)",
+                        status,
+                    )
                     raise RuntimeError(f"IBKR order rejected with status {status}")
 
                 # Reprice step down towards min_credit
                 current_credit = round(current_credit - self.walk_step, 2)
                 if current_credit < min_credit:
-                    logger.warning("  ⛔ Credit $%.2f reached floor $%.2f without filling. Cancelling order.", current_credit, min_credit)
+                    logger.warning(
+                        "  ⛔ Credit $%.2f reached floor $%.2f without filling. Cancelling order.",
+                        current_credit,
+                        min_credit,
+                    )
                     self.ib.cancelOrder(order)
                     await asyncio.sleep(1.0)
-                    raise RuntimeError(f"Walk-the-book timed out at min credit {min_credit}")
+                    raise RuntimeError(
+                        f"Walk-the-book timed out at min credit {min_credit}"
+                    )
 
                 # Cancel and Replace to avoid Warning 105
                 self.ib.cancelOrder(order)
                 await asyncio.sleep(0.5)
 
-                order = build_opening_credit_order(trade.contracts, current_credit, account=self.client.account, order_ref=order_ref)
+                order = build_opening_credit_order(
+                    trade.contracts,
+                    current_credit,
+                    account=self.client.account,
+                    order_ref=order_ref,
+                )
                 parent_trade = self.ib.placeOrder(combo, order)
-                logger.info("  🔄 Repricing (Cancel/Replace): Limit Credit -> $%.2f", current_credit)
+                logger.info(
+                    "  🔄 Repricing (Cancel/Replace): Limit Credit -> $%.2f",
+                    current_credit,
+                )
 
         finally:
             self.ib.errorEvent -= _on_error
 
     async def open_candidate(self, candidate, contracts: int) -> str:
         """Open a position directly from CandidateTrade (used during rolling)."""
-        logger.info("Opening roll candidate %s %s (%d contracts)...", candidate.symbol, candidate.strategy.value, contracts)
+        logger.info(
+            "Opening roll candidate %s %s (%d contracts)...",
+            candidate.symbol,
+            candidate.strategy.value,
+            contracts,
+        )
         # Create a transient trade object to reuse the placer flow
         trade = Trade(
             symbol=candidate.symbol,
@@ -227,7 +313,11 @@ class IBKRPlacer:
     async def close(self, trade: Trade, cost_to_close: float) -> str:
         """Close an open position for net debit (for rolls, manual exits, or defense)."""
         logger.info("\n" + "=" * 60)
-        logger.info("  🛡 TastyAgent IBKR Placer — Closing Trade #%s (%s)", trade.id, trade.symbol)
+        logger.info(
+            "  🛡 IBTastyAgent IBKR Placer — Closing Trade #%s (%s)",
+            trade.id,
+            trade.symbol,
+        )
         logger.info("=" * 60)
 
         # 1. Qualify all legs
@@ -242,7 +332,14 @@ class IBKRPlacer:
         debit_per_share = round(float(cost_to_close) / (100 * trade.contracts), 2)
         order_ref = f"TastyAgent_CLOSE_{trade.id}"
 
-        order = build_manual_close_order(trade.contracts, debit_per_share, account=self.client.account, order_ref=order_ref)
+        order = build_manual_close_order(
+            trade.contracts,
+            debit_per_share,
+            account=self.client.account,
+            order_ref=order_ref,
+        )
         close_trade = self.ib.placeOrder(combo, order)
-        logger.info("  📤 Close order submitted: SELL combo @ -$%.2f debit", debit_per_share)
+        logger.info(
+            "  📤 Close order submitted: SELL combo @ -$%.2f debit", debit_per_share
+        )
         return str(close_trade.order.orderId)

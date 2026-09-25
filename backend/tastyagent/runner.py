@@ -1,4 +1,4 @@
-"""The cycle tick: one full pass of the TastyAgent with Interactive Brokers.
+"""The cycle tick: one full pass of the IBTastyAgent with Interactive Brokers.
 
 gather account state -> build market context (IBKR Market Scanner & IV Rank) ->
 generate candidates (IBKR Greeks/Chains) -> orchestrator.run_cycle ->
@@ -98,7 +98,9 @@ async def _live_mark(client: IBKRClient, trade: Trade) -> PositionMark:
     )
 
 
-async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: RollKind, mark: PositionMark, params):
+async def _build_roll_candidate(
+    client: IBKRClient, trade: Trade, roll_kind: RollKind, mark: PositionMark, params
+):
     """Build the replacement strangle for a roll."""
     sym = trade.symbol
     today = date.today()
@@ -114,6 +116,7 @@ async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: Rol
 
     if roll_kind is RollKind.OUT:
         from .strategy.candidates import _parse_exp_date
+
         parsed_exps = [_parse_exp_date(e) for e in raw_exps]
         exp_date = pick_expiration(parsed_exps, params, today)
         if exp_date is None:
@@ -128,7 +131,11 @@ async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: Rol
             contracts = []
 
         if not contracts:
-            contracts = [Option(sym, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
+            contracts = [
+                Option(sym, exp_str, s, r, "SMART", currency="USD")
+                for s in eligible_strikes
+                for r in ("P", "C")
+            ]
             await client.data_ib.qualifyContractsAsync(*contracts)
             contracts = [c for c in contracts if c.conId > 0]
 
@@ -136,7 +143,9 @@ async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: Rol
             return None
 
         lo_rel, hi_rel = underlying * 0.75, underlying * 1.25
-        relevant_contracts = [c for c in contracts if lo_rel <= c.strike <= hi_rel] or contracts
+        relevant_contracts = [
+            c for c in contracts if lo_rel <= c.strike <= hi_rel
+        ] or contracts
         snaps = await snapshot_options(client.data_ib, relevant_contracts, timeout=8.0)
 
         puts = [c for c in relevant_contracts if c.right == "P"]
@@ -150,7 +159,9 @@ async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: Rol
         if not sp or not sc:
             return None
 
-        return build_strangle_candidate(sym, underlying, 1.0, (exp_date - today).days, p, c, sp, sc)
+        return build_strangle_candidate(
+            sym, underlying, 1.0, (exp_date - today).days, p, c, sp, sc
+        )
 
     return None
 
@@ -209,7 +220,9 @@ async def run_one_cycle(
             logger.debug("Take-profit audit failed: %s", e)
 
         async def _roll(trade, roll_kind, mark):
-            new_cand = await _build_roll_candidate(client, trade, roll_kind, mark, params)
+            new_cand = await _build_roll_candidate(
+                client, trade, roll_kind, mark, params
+            )
             if new_cand is None or new_cand.net_credit <= 0:
                 return None
             await placer.close(trade, mark.cost_to_close)
@@ -231,7 +244,9 @@ async def run_one_cycle(
 
     bp_used = sum(t.buying_power for t in ledger.open_trades())
     portfolio = PortfolioInput(
-        net_liq=net_liq, bp_used=bp_used, positions_by_symbol=ledger.positions_by_symbol()
+        net_liq=net_liq,
+        bp_used=bp_used,
+        positions_by_symbol=ledger.positions_by_symbol(),
     )
 
     # 4. Market Context (IV Rank for universe via IBKR 1-year historical IV + cache)
@@ -243,10 +258,16 @@ async def run_one_cycle(
 
     # 5. Decision cycle (LLM / Guardrails)
     result = await run_cycle(candidates, portfolio, regime, params, limits)
-    decision = ledger.record_decision(runtime.mode.value if hasattr(runtime.mode, "value") else str(runtime.mode), result.commentary, result.considered)
+    decision = ledger.record_decision(
+        runtime.mode.value if hasattr(runtime.mode, "value") else str(runtime.mode),
+        result.commentary,
+        result.considered,
+    )
 
     # 6. Execute new entries
-    outcomes = await Executor(ledger, runtime.mode, placer).execute_cycle(result, decision)
+    outcomes = await Executor(ledger, runtime.mode, placer).execute_cycle(
+        result, decision
+    )
 
     # 7. Reconcile fills against active IBKR orders
     try:
@@ -261,7 +282,9 @@ async def run_one_cycle(
     sp_close = await asyncio.to_thread(latest_sp500_close)
     session.add(
         EquitySnapshot(
-            net_liq=runtime.starting_capital + summary.realized_pnl + summary.unrealized_pnl,
+            net_liq=runtime.starting_capital
+            + summary.realized_pnl
+            + summary.unrealized_pnl,
             realized_pnl_cum=summary.realized_pnl,
             unrealized_pnl=summary.unrealized_pnl,
             sp500_close=sp_close,

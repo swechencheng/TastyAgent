@@ -1,4 +1,4 @@
-"""Clean slate: cancel TastyAgent working orders and wipe the local SQLite ledger.
+"""Clean slate: cancel IBTastyAgent working orders and wipe the local SQLite ledger.
 
 IMPORTANT: This script strictly respects position isolation.
 It ONLY cancels orders where orderRef starts with 'TastyAgent_'.
@@ -41,15 +41,19 @@ async def main() -> None:
                 other_trades.append(t)
 
         print(f"Found {len(open_trades)} total open orders:")
-        print(f"  - TastyAgent orders: {len(ta_trades)}")
+        print(f"  - IBTastyAgent orders: {len(ta_trades)}")
         print(f"  - Other account orders (protected): {len(other_trades)}")
 
         for t in ta_trades:
-            print(f"  Cancelling TastyAgent order {t.order.orderId} ({t.contract.symbol}, ref={t.order.orderRef})...")
+            print(
+                f"  Cancelling IBTastyAgent order {t.order.orderId} ({t.contract.symbol}, ref={t.order.orderRef})..."
+            )
             client.trading_ib.cancelOrder(t.order)
 
         if other_trades:
-            print(f"\n  [PROTECTION] Preserving {len(other_trades)} non-TastyAgent open orders.")
+            print(
+                f"\n  [PROTECTION] Preserving {len(other_trades)} non-IBTastyAgent open orders."
+            )
 
     finally:
         await client.disconnect()

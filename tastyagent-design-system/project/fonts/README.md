@@ -1,25 +1,25 @@
 # Fonts
 
-TastyAgent uses two typefaces, both **free and open-source on Google Fonts**:
+IBTastyAgent uses two typefaces, both **free and open-source on Google Fonts**:
 
-| Role | Family | Weights used | Notes |
-|---|---|---|---|
-| UI / headings / body | **Inter** | 400, 500, 600, 700 | Clean, neutral, financial. The brief also allows Geist Sans as an alternative. |
-| Numbers / tables / code | **JetBrains Mono** | 400, 500, 600, 700 | Tabular figures so prices, P/L, deltas and percentages align in columns. |
+| Role                    | Family             | Weights used       | Notes                                                                          |
+| ----------------------- | ------------------ | ------------------ | ------------------------------------------------------------------------------ |
+| UI / headings / body    | **Inter**          | 400, 500, 600, 700 | Clean, neutral, financial. The brief also allows Geist Sans as an alternative. |
+| Numbers / tables / code | **JetBrains Mono** | 400, 500, 600, 700 | Tabular figures so prices, P/L, deltas and percentages align in columns.       |
 
 ## How they're loaded
 
 `colors_and_type.css` imports both from the Google Fonts CDN:
 
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 ```
 
 The UI kit and preview cards link the same Google Fonts stylesheet in their `<head>`.
 
 ## ⚠️ Substitution flag
 
-The TastyAgent repo ships **no font files** — it relied on system/CDN fonts. We are
+The IBTastyAgent repo ships **no font files** — it relied on system/CDN fonts. We are
 therefore loading Inter + JetBrains Mono **from the Google Fonts CDN** rather than from
 local `.ttf`/`.woff2` files in this folder.
 

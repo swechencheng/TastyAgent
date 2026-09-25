@@ -1,5 +1,5 @@
 /* ============================================================================
-   TastyAgent UI Kit — shared primitives, mock data, helpers  (v2)
+   IBTastyAgent UI Kit — shared primitives, mock data, helpers  (v2)
    ========================================================================== */
 const { useState, useEffect, useRef, useMemo } = React;
 
@@ -114,7 +114,7 @@ function EquityChart({ strategy, sp500, outperf }) {
   return (
     <div className="ta-chart">
       <div className="ta-chart-legend">
-        <span><i className="lg" style={{ background: "var(--brand)" }} />TastyAgent</span>
+        <span><i className="lg" style={{ background: "var(--brand)" }} />IBTastyAgent</span>
         <span><i className="lg" style={{ background: "var(--text-muted)" }} />S&amp;P 500</span>
         {outperf != null && <span className="ta-outperf">outperformance {fmtPct(outperf)}</span>}
       </div>

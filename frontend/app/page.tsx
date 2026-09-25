@@ -38,6 +38,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Toaster } from "@/components/ui/sonner";
 import ConfirmDialog, { ConfirmSpec } from "@/components/ConfirmDialog";
 import NotificationBell from "@/components/NotificationBell";
+import IbkrLogo from "@/components/IbkrLogo";
 import { cn } from "@/lib/utils";
 
 import Overview from "@/components/screens/Overview";
@@ -170,8 +171,11 @@ export default function App() {
     <div className="flex min-h-screen flex-col">
       {/* ---- Desktop Status bar ---- */}
       <header className="hidden md:flex h-14 flex-shrink-0 items-center gap-4 border-b border-border bg-black px-5">
-        <div className="text-[18px] font-bold tracking-[-0.02em]">
-          Tasty<span className="text-brand">Agent</span>
+        <div className="flex items-center gap-2.5">
+          <IbkrLogo className="h-6 w-auto" />
+          <div className="text-[18px] font-bold tracking-[-0.02em]">
+            Tasty<span className="text-brand">Agent</span>
+          </div>
         </div>
 
         <DropdownMenu>
@@ -261,8 +265,11 @@ export default function App() {
             >
               <Menu className="size-5" />
             </button>
-            <div className="text-[17px] font-bold tracking-tight shrink-0">
-              Tasty<span className="text-brand">Agent</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <IbkrLogo className="h-5 w-auto" />
+              <div className="text-[17px] font-bold tracking-tight">
+                Tasty<span className="text-brand">Agent</span>
+              </div>
             </div>
             {s && (
               <span
@@ -357,8 +364,11 @@ export default function App() {
             <div className="flex flex-col gap-4">
               {/* Drawer Header */}
               <div className="flex items-center justify-between border-b border-border pb-3">
-                <div className="text-lg font-bold tracking-tight">
-                  Tasty<span className="text-brand">Agent</span>
+                <div className="flex items-center gap-2">
+                  <IbkrLogo className="h-6 w-auto" />
+                  <div className="text-lg font-bold tracking-tight">
+                    Tasty<span className="text-brand">Agent</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setMobileNavOpen(false)}

@@ -1,4 +1,4 @@
-# TastyAgent — UI Redesign Brief
+# IBTastyAgent — UI Redesign Brief
 
 > Hand this whole document to a design tool / LLM to generate the new UI. It is
 > self-contained: it covers the product, brand, information architecture, every screen,
@@ -9,9 +9,9 @@
 
 ## 1. Product context
 
-**TastyAgent** is an AI options-trading agent that trades tastytrade's premium-selling
+**IBTastyAgent** is an AI options-trading agent that trades tastytrade's premium-selling
 methodology. Deterministic tastytrade mechanics are hard guardrails; an OpenRouter LLM is an adaptive
-selection layer *within* those rails. It paper-trades through tastytrade's sandbox and
+selection layer _within_ those rails. It paper-trades through tastytrade's sandbox and
 (optionally) trades live with one-click approval.
 
 **The user** is a single operator (the trader) running their own agent. They need to
@@ -27,7 +27,7 @@ something needs attention (a loss, a pending approval, the kill switch).
 
 ## 2. Redesign goals
 
-1. **One cohesive app** to both *monitor* and *manage* the agent (today these are scattered
+1. **One cohesive app** to both _monitor_ and _manage_ the agent (today these are scattered
    on one long scrolling page).
 2. **Manage all settings from the UI** — trading mode, kill switch, scheduler, working
    capital, strategy params, risk limits, watchlist (most of these aren't editable today).
@@ -48,29 +48,29 @@ enough), backtesting (intentionally out of scope — paper trading is the valida
 
 Pure-black canvas, white content, tastytrade red as the brand/action/danger accent. Gains are
 green, losses are red (semantically aligned with the brand red). Disambiguate "brand red CTA"
-from "red loss number" by **form**: red *fills* = actions; red *text* = negative values.
+from "red loss number" by **form**: red _fills_ = actions; red _text_ = negative values.
 
 ### Color palette (exact hex)
 
-| Token | Hex | Use |
-|---|---|---|
-| `bg` (canvas) | `#0A0A0B` | App background (near-black; pure `#000` for the deepest header/sidebar) |
-| `surface` | `#141417` | Cards / panels raised off the canvas |
-| `surface-2` | `#1C1C21` | Inputs, nested rows, hover fills |
-| `border` | `#2A2A30` | Hairline borders / dividers |
-| `text` | `#FFFFFF` | Primary text, key numbers |
-| `text-muted` | `#9A9AA4` | Labels, secondary text (meets 4.5:1 on canvas) |
-| `text-faint` | `#6B6B74` | Tertiary / disabled |
-| **`brand`** (tastytrade red) | `#E4002B` | Logo, primary CTA fills, active nav, danger fills. *Verify exact hue against the live tastytrade brand; ~`#E4002B`/`#ED1C24`.* |
-| `brand-hover` | `#FF1F47` | CTA hover |
-| `loss` (text) | `#FF4D6A` | Negative P/L **text** (brighter than brand for 4.5:1 contrast on dark) |
-| `gain` (text) | `#16C784` | Positive P/L text |
-| `gain-soft` / `loss-soft` | `#16C78422` / `#FF4D6A22` | Subtle tints behind gain/loss chips, sparkline fills |
-| `warn` | `#F0A500` | Cautions (e.g. near-DTE, approval pending) |
-| `info` | `#4C9AFF` | Neutral highlights / links (use sparingly; keep red as the hero accent) |
+| Token                        | Hex                       | Use                                                                                                                            |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `bg` (canvas)                | `#0A0A0B`                 | App background (near-black; pure `#000` for the deepest header/sidebar)                                                        |
+| `surface`                    | `#141417`                 | Cards / panels raised off the canvas                                                                                           |
+| `surface-2`                  | `#1C1C21`                 | Inputs, nested rows, hover fills                                                                                               |
+| `border`                     | `#2A2A30`                 | Hairline borders / dividers                                                                                                    |
+| `text`                       | `#FFFFFF`                 | Primary text, key numbers                                                                                                      |
+| `text-muted`                 | `#9A9AA4`                 | Labels, secondary text (meets 4.5:1 on canvas)                                                                                 |
+| `text-faint`                 | `#6B6B74`                 | Tertiary / disabled                                                                                                            |
+| **`brand`** (tastytrade red) | `#E4002B`                 | Logo, primary CTA fills, active nav, danger fills. _Verify exact hue against the live tastytrade brand; ~`#E4002B`/`#ED1C24`._ |
+| `brand-hover`                | `#FF1F47`                 | CTA hover                                                                                                                      |
+| `loss` (text)                | `#FF4D6A`                 | Negative P/L **text** (brighter than brand for 4.5:1 contrast on dark)                                                         |
+| `gain` (text)                | `#16C784`                 | Positive P/L text                                                                                                              |
+| `gain-soft` / `loss-soft`    | `#16C78422` / `#FF4D6A22` | Subtle tints behind gain/loss chips, sparkline fills                                                                           |
+| `warn`                       | `#F0A500`                 | Cautions (e.g. near-DTE, approval pending)                                                                                     |
+| `info`                       | `#4C9AFF`                 | Neutral highlights / links (use sparingly; keep red as the hero accent)                                                        |
 
 **Contrast rule (from design guidelines):** every text/background pair ≥ 4.5:1. That's why
-loss *text* uses the brighter `#FF4D6A`, while the deep `brand` red is for fills with white text.
+loss _text_ uses the brighter `#FF4D6A`, while the deep `brand` red is for fills with white text.
 
 ### Typography
 
@@ -97,7 +97,7 @@ A persistent **left sidebar** + a persistent **top status bar**, with a routed c
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│ STATUS BAR  ● TastyAgent | mode▾ | Market: Open | Auto●ON | P/L +$420  ⛔│
+│ STATUS BAR  ● IBTastyAgent | mode▾ | Market: Open | Auto●ON | P/L +$420  ⛔│
 ├──────────┬────────────────────────────────────────────────────────────┤
 │ SIDEBAR  │  ROUTED CONTENT                                             │
 │ Overview │                                                             │
@@ -112,6 +112,7 @@ A persistent **left sidebar** + a persistent **top status bar**, with a routed c
 ```
 
 **Top status bar (always visible, the mission-control strip):**
+
 - Logo "Tasty<span red>Agent</span>", market open/closed pill, **mode selector**,
   **Auto on/off**, **total P/L** (color-coded), and a guarded **Kill switch** (far right,
   red, requires confirm). A small "live • updated 3s ago" indicator.
@@ -127,10 +128,11 @@ wraps; tables become horizontally scrollable cards.
 ## 5. Screens (page-by-page)
 
 ### 5.1 Overview (the at-a-glance dashboard)
+
 - **KPI row** (stat cards, each: label, big tabular number, delta, optional sparkline):
   Total P/L, Profit %, Realized, Unrealized, Win rate (with `W/L`), Open / Closed counts.
   Working capital shown as context.
-- **Equity vs S&P 500** line chart (two series: TastyAgent = brand red, S&P = muted grey/white;
+- **Equity vs S&P 500** line chart (two series: IBTastyAgent = brand red, S&P = muted grey/white;
   tooltip, "outperformance +x%"). Empty state until snapshots accrue.
 - **Needs attention**: if `requires_approval` and the queue is non-empty, a prominent
   **Approval queue** block (cards with symbol, strategy, contracts, credit, PoP, rationale,
@@ -139,6 +141,7 @@ wraps; tables become horizontally scrollable cards.
 - **Recent activity** (last few decisions: time, "+2 opened / 1 rolled", one-line commentary).
 
 ### 5.2 Positions
+
 - Tabs / segmented control: **Open** · **Closed (Win/Loss)**.
 - **Open** table: Symbol, Strategy, Qty, Entry credit, **PoP**, Unrealized P/L (color), DTE,
   status (working/open), Rationale (truncated, expandable), per-row manage (close/roll — future).
@@ -146,6 +149,7 @@ wraps; tables become horizontally scrollable cards.
 - Filters: by symbol, strategy, win/loss. Sortable columns. Sticky header, tabular nums.
 
 ### 5.3 Watchlist (the agent's universe)
+
 - Header: count + "seeded from tastytrade High Options Volume". Add-ticker input + **Add**.
 - Table: Symbol, **IV rank** (heat-tinted bar/badge — high IVR = stronger red tint),
   IV %ile, Liquidity rating, Source (custom / default / `tt:<list>`), **Enabled** toggle, Remove.
@@ -154,12 +158,14 @@ wraps; tables become horizontally scrollable cards.
   count) with **Import all** per list.
 
 ### 5.4 Activity / Decision log
+
 - Reverse-chronological feed of cycles. Each entry: timestamp, mode, **LLM commentary**
   (the "why"), counts (considered / planned / placed / rejected / exits-rolled), and the
   universe analyzed (top-N tickers). Expand to see the trades placed/rejected with reasons.
-  *(Backend: needs a decisions/activity endpoint — see §7.)*
+  _(Backend: needs a decisions/activity endpoint — see §7.)_
 
 ### 5.5 Settings (the management surface — mostly NEW)
+
 Grouped, with inline help, sensible min/max, and **confirmation for sensitive changes**
 (anything that loosens risk, or switching to a live mode). Save per-group with a clear
 "unsaved changes" state. Groups:
@@ -206,23 +212,24 @@ $500").
 
 Base URL `http://localhost:8000`. The UI polls (SWR) ~every 8s.
 
-| Endpoint | Returns / does | Screen |
-|---|---|---|
-| `GET /api/status` | `mode, kill_switch, market_open, starting_capital, requires_approval, scheduler_running` | Status bar |
-| `GET /api/pnl` | `realized, unrealized, total, open_count, closed_count, wins, losses, win_rate, profit_pct, starting_capital` | Overview KPIs |
-| `GET /api/benchmark` | `strategy_return_pct, sp500_return_pct, outperformance_pct, strategy_curve[], sp500_curve[]` | Equity chart |
-| `GET /api/positions` | open trades (symbol, strategy, contracts, status, entry_credit, **probability_of_profit**, unrealized_pnl, dte_at_entry, rationale, legs[]) | Positions / Overview |
-| `GET /api/trades/closed` | closed trades (+ realized_pnl, is_win, exit_reason) | Positions (Closed) |
-| `GET /api/approvals` | pending-approval trades | Approval queue |
-| `POST /api/approvals/{id}/approve` · `/reject` | act on a pending trade | Approval queue |
-| `POST /api/cycle/run` | run one decision cycle now | Run-cycle button |
-| `POST /api/scheduler/start` · `/stop` | start/stop the market-hours loop | Status bar / Settings |
-| `POST /api/mode` · `POST /api/kill-switch` | set mode / engage kill switch | Status bar / Settings |
-| `GET /api/watchlist` · `POST` · `DELETE /{symbol}` · `POST /{symbol}/toggle` · `POST /import` | watchlist CRUD | Watchlist |
-| `GET /api/watchlist/ranked` | per-symbol IV rank / %ile / liquidity | Watchlist |
-| `GET /api/tastytrade-watchlists` | tastytrade's public/recommended lists | Watchlist import |
+| Endpoint                                                                                      | Returns / does                                                                                                                              | Screen                |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `GET /api/status`                                                                             | `mode, kill_switch, market_open, starting_capital, requires_approval, scheduler_running`                                                    | Status bar            |
+| `GET /api/pnl`                                                                                | `realized, unrealized, total, open_count, closed_count, wins, losses, win_rate, profit_pct, starting_capital`                               | Overview KPIs         |
+| `GET /api/benchmark`                                                                          | `strategy_return_pct, sp500_return_pct, outperformance_pct, strategy_curve[], sp500_curve[]`                                                | Equity chart          |
+| `GET /api/positions`                                                                          | open trades (symbol, strategy, contracts, status, entry_credit, **probability_of_profit**, unrealized_pnl, dte_at_entry, rationale, legs[]) | Positions / Overview  |
+| `GET /api/trades/closed`                                                                      | closed trades (+ realized_pnl, is_win, exit_reason)                                                                                         | Positions (Closed)    |
+| `GET /api/approvals`                                                                          | pending-approval trades                                                                                                                     | Approval queue        |
+| `POST /api/approvals/{id}/approve` · `/reject`                                                | act on a pending trade                                                                                                                      | Approval queue        |
+| `POST /api/cycle/run`                                                                         | run one decision cycle now                                                                                                                  | Run-cycle button      |
+| `POST /api/scheduler/start` · `/stop`                                                         | start/stop the market-hours loop                                                                                                            | Status bar / Settings |
+| `POST /api/mode` · `POST /api/kill-switch`                                                    | set mode / engage kill switch                                                                                                               | Status bar / Settings |
+| `GET /api/watchlist` · `POST` · `DELETE /{symbol}` · `POST /{symbol}/toggle` · `POST /import` | watchlist CRUD                                                                                                                              | Watchlist             |
+| `GET /api/watchlist/ranked`                                                                   | per-symbol IV rank / %ile / liquidity                                                                                                       | Watchlist             |
+| `GET /api/tastytrade-watchlists`                                                              | tastytrade's public/recommended lists                                                                                                       | Watchlist import      |
 
 **New endpoints the redesign needs (to build during implementation):**
+
 - `GET /api/settings` + `PUT /api/settings` — read/update `StrategyParams` + `RiskLimits` +
   `working_capital` + scheduler config (so Settings is editable, not just viewable).
 - `GET /api/activity` (or `/api/decisions`) — recent cycle decisions with commentary + outcomes
@@ -248,7 +255,7 @@ Base URL `http://localhost:8000`. The UI polls (SWR) ~every 8s.
   `#0A0A0B`).
 - Visible focus rings; full keyboard nav; tab order matches visual order.
 - 44×44px min touch targets; `cursor: pointer` on all interactives.
-- `aria-label` on icon-only buttons; `label` on every input; color is never the *only* signal
+- `aria-label` on icon-only buttons; `label` on every input; color is never the _only_ signal
   (pair gain/loss color with `+`/`−` and an arrow).
 - Responsive at **375 / 768 / 1024 / 1440**; no horizontal page scroll; 16px+ mobile inputs.
 - `prefers-reduced-motion` respected.
@@ -259,6 +266,7 @@ Base URL `http://localhost:8000`. The UI polls (SWR) ~every 8s.
 
 The current app is **Next.js (App Router) + React 19 + TypeScript + SWR + Recharts** with plain
 CSS. For the redesign, recommend adding:
+
 - **Tailwind CSS** (theme tokens = the palette above) + **shadcn/ui** (accessible primitives:
   dialog, switch, tabs, tooltip, dropdown, toast, table) + **Lucide** icons. Keep **Recharts**
   for the equity chart. Keep **SWR** for polling.
@@ -267,6 +275,7 @@ CSS. For the redesign, recommend adding:
 ---
 
 ## 11. Screens to design (checklist)
+
 - [ ] App shell: status bar + sidebar (desktop) and the mobile collapsed nav
 - [ ] Overview: KPI row, equity chart, approval queue, open-positions snippet, recent activity
 - [ ] Positions: Open + Closed tables with filters/sort
@@ -280,14 +289,15 @@ CSS. For the redesign, recommend adding:
 ---
 
 ### One-paragraph summary (for a design tool's first prompt)
-> Redesign **TastyAgent**, a dark, data-dense AI options-trading control panel branded like
+
+> Redesign **IBTastyAgent**, a dark, data-dense AI options-trading control panel branded like
 > tastytrade (black canvas `#0A0A0B`, white text, tastytrade red `#E4002B` for brand/CTAs/danger;
 > green `#16C784` gains / red `#FF4D6A` losses). Build an app shell with a persistent top
 > status bar (mode, market status, Auto toggle, total P/L, kill switch) and a left sidebar
 > (Overview, Positions, Watchlist, Activity, Settings) + a pinned Run-cycle button. Inter for UI,
 > JetBrains Mono for numbers, Lucide icons, 12px-radius cards. It must let the operator both
-> *monitor* (P/L KPIs, equity-vs-S&P chart, positions with probability-of-profit, win/loss,
-> approval queue, IV-rank watchlist, decision log) and *manage* (trading mode, kill switch,
+> _monitor_ (P/L KPIs, equity-vs-S&P chart, positions with probability-of-profit, win/loss,
+> approval queue, IV-rank watchlist, decision log) and _manage_ (trading mode, kill switch,
 > scheduler, working capital, strategy & risk settings, watchlist) with calm clarity and
 > confirmed destructive actions. Fully accessible (4.5:1 contrast, focus rings, keyboard nav)
 > and responsive (375/768/1024/1440).

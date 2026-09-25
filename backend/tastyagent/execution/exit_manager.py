@@ -31,7 +31,9 @@ from ..strategy.exits import ExitAction, RollKind, evaluate_exit
 class PositionMark:
     cost_to_close: float  # total dollars to buy the position back now
     max_short_delta: float | None = None  # |delta| of the most-tested short leg
-    tested_side: OptionType | None = None  # which short leg is tested (for roll-untested)
+    tested_side: OptionType | None = (
+        None  # which short leg is tested (for roll-untested)
+    )
 
 
 @dataclass
@@ -56,9 +58,7 @@ class ExitOutcome:
     detail: str = ""
 
 
-def trade_to_position(
-    trade: Trade, mark: PositionMark, today: date
-) -> OpenPosition:
+def trade_to_position(trade: Trade, mark: PositionMark, today: date) -> OpenPosition:
     exp = min((leg.expiration for leg in trade.legs), default=today)
     entry = trade.entry_date or (trade.opened_at.date() if trade.opened_at else today)
     return OpenPosition(
@@ -93,29 +93,47 @@ async def manage_exits(
         try:
             mark = await mark_fn(trade)
         except Exception as e:  # noqa: BLE001 - skip a position we can't mark this tick
-            outcomes.append(ExitOutcome(trade.id, trade.symbol, "error", "mark failed", str(e)))
+            outcomes.append(
+                ExitOutcome(trade.id, trade.symbol, "error", "mark failed", str(e))
+            )
             continue
 
         ledger.update_mark(trade, mark.cost_to_close)
         decision = evaluate_exit(trade_to_position(trade, mark, today), params)
 
         if not decision.should_act:
-            outcomes.append(ExitOutcome(trade.id, trade.symbol, "hold", decision.reason))
+            outcomes.append(
+                ExitOutcome(trade.id, trade.symbol, "hold", decision.reason)
+            )
             continue
 
         if decision.action is ExitAction.ROLL and roll_fn is not None:
             try:
                 roll = await roll_fn(trade, decision.roll_kind, mark)
             except Exception as e:  # noqa: BLE001
-                outcomes.append(ExitOutcome(trade.id, trade.symbol, "error", decision.reason, str(e)))
+                outcomes.append(
+                    ExitOutcome(
+                        trade.id, trade.symbol, "error", decision.reason, str(e)
+                    )
+                )
                 continue
             if roll is not None:
                 new = ledger.record_roll(
-                    trade, roll.new_candidate, roll.contracts,
-                    roll.exit_debit, decision.reason, roll.new_order_id,
+                    trade,
+                    roll.new_candidate,
+                    roll.contracts,
+                    roll.exit_debit,
+                    decision.reason,
+                    roll.new_order_id,
                 )
                 outcomes.append(
-                    ExitOutcome(trade.id, trade.symbol, "rolled", decision.reason, f"-> #{new.id}")
+                    ExitOutcome(
+                        trade.id,
+                        trade.symbol,
+                        "rolled",
+                        decision.reason,
+                        f"-> #{new.id}",
+                    )
                 )
                 continue
             # No credit roll available -> fall through to a plain close.
@@ -127,11 +145,17 @@ async def manage_exits(
         try:
             order_id = await close_fn(trade, mark.cost_to_close)
         except Exception as e:  # noqa: BLE001
-            outcomes.append(ExitOutcome(trade.id, trade.symbol, "error", decision_reason, str(e)))
+            outcomes.append(
+                ExitOutcome(trade.id, trade.symbol, "error", decision_reason, str(e))
+            )
             continue
-        ledger.close_trade(trade, exit_debit=mark.cost_to_close, exit_reason=decision_reason)
+        ledger.close_trade(
+            trade, exit_debit=mark.cost_to_close, exit_reason=decision_reason
+        )
         outcomes.append(
-            ExitOutcome(trade.id, trade.symbol, "closed", decision_reason, f"order {order_id}")
+            ExitOutcome(
+                trade.id, trade.symbol, "closed", decision_reason, f"order {order_id}"
+            )
         )
 
     return outcomes
@@ -142,7 +166,7 @@ async def audit_take_profit_orders(
     active_broker_order_ids: set[str],
     auto_attach_fn: Callable[[Trade], Awaitable[str]] | None = None,
 ) -> list[str]:
-    """Audit open TastyAgent positions to ensure each has an active Take-Profit order on IBKR.
+    """Audit open IBTastyAgent positions to ensure each has an active Take-Profit order on IBKR.
 
     If an open trade has no active Take-Profit order:
       - Emits an alert warning the user.
@@ -154,24 +178,37 @@ async def audit_take_profit_orders(
         if trade.status is not TradeStatus.OPEN:
             continue
 
-        has_active_tp = trade.tp_order_id and str(trade.tp_order_id) in active_broker_order_ids
+        has_active_tp = (
+            trade.tp_order_id and str(trade.tp_order_id) in active_broker_order_ids
+        )
 
         if not has_active_tp:
             msg = (
                 f"⚠️ Position Alert: Trade #{trade.id} ({trade.symbol} {trade.strategy}, "
-                f"{trade.contracts}x) is OPEN in TastyAgent but has NO active Take-Profit order on IBKR!"
+                f"{trade.contracts}x) is OPEN in IBTastyAgent but has NO active Take-Profit order on IBKR!"
             )
             logger.warning(msg)
             alerts.append(msg)
 
             if auto_attach_fn is not None:
                 try:
-                    logger.info("Auto-attaching missing Take-Profit order for Trade #%s...", trade.id)
+                    logger.info(
+                        "Auto-attaching missing Take-Profit order for Trade #%s...",
+                        trade.id,
+                    )
                     new_tp_id = await auto_attach_fn(trade)
                     trade.tp_order_id = str(new_tp_id)
                     ledger.s.commit()
-                    logger.info("Successfully attached missing Take-Profit order #%s for Trade #%s", new_tp_id, trade.id)
+                    logger.info(
+                        "Successfully attached missing Take-Profit order #%s for Trade #%s",
+                        new_tp_id,
+                        trade.id,
+                    )
                 except Exception as e:
-                    logger.error("Failed to auto-attach Take-Profit order for Trade #%s: %s", trade.id, e)
+                    logger.error(
+                        "Failed to auto-attach Take-Profit order for Trade #%s: %s",
+                        trade.id,
+                        e,
+                    )
 
     return alerts

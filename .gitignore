@@ -221,7 +221,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# TastyAgent runtime + frontend
+# IBTastyAgent runtime + frontend
 backend/data/
 *.db
 frontend/node_modules/
