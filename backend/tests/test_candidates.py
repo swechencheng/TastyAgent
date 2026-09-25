@@ -10,7 +10,7 @@ from tastyagent.strategy.candidates import (
     pick_expiration,
 )
 from tastyagent.strategy.guardrails import validate_candidate
-from tastyagent.tt.marketdata import OptionSnapshot
+from tastyagent.ibkr.marketdata import OptionSnapshot
 
 PARAMS = StrategyParams()
 TODAY = date(2026, 1, 1)

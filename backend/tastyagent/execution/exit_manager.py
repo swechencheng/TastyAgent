@@ -15,7 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import logging
 from typing import Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 
 from ..config import StrategyParams
 from ..db.models import Trade, TradeStatus
@@ -132,3 +135,43 @@ async def manage_exits(
         )
 
     return outcomes
+
+
+async def audit_take_profit_orders(
+    ledger: Ledger,
+    active_broker_order_ids: set[str],
+    auto_attach_fn: Callable[[Trade], Awaitable[str]] | None = None,
+) -> list[str]:
+    """Audit open TastyAgent positions to ensure each has an active Take-Profit order on IBKR.
+
+    If an open trade has no active Take-Profit order:
+      - Emits an alert warning the user.
+      - Optionally calls auto_attach_fn to automatically submit the missing 50% TP order.
+    """
+    alerts: list[str] = []
+
+    for trade in ledger.open_trades():
+        if trade.status is not TradeStatus.OPEN:
+            continue
+
+        has_active_tp = trade.tp_order_id and str(trade.tp_order_id) in active_broker_order_ids
+
+        if not has_active_tp:
+            msg = (
+                f"⚠️ Position Alert: Trade #{trade.id} ({trade.symbol} {trade.strategy}, "
+                f"{trade.contracts}x) is OPEN in TastyAgent but has NO active Take-Profit order on IBKR!"
+            )
+            logger.warning(msg)
+            alerts.append(msg)
+
+            if auto_attach_fn is not None:
+                try:
+                    logger.info("Auto-attaching missing Take-Profit order for Trade #%s...", trade.id)
+                    new_tp_id = await auto_attach_fn(trade)
+                    trade.tp_order_id = str(new_tp_id)
+                    ledger.s.commit()
+                    logger.info("Successfully attached missing Take-Profit order #%s for Trade #%s", new_tp_id, trade.id)
+                except Exception as e:
+                    logger.error("Failed to auto-attach Take-Profit order for Trade #%s: %s", trade.id, e)
+
+    return alerts

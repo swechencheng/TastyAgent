@@ -9,7 +9,7 @@ from tastyagent.config import TradingMode
 from tastyagent.db.session import in_memory_session, init_db
 from tastyagent.decision.context import rank_universe
 from tastyagent.portfolio.watchlist import WatchlistRepo
-from tastyagent.tt.metrics import IVMetrics
+from tastyagent.ibkr.metrics import IVMetrics
 
 
 def repo() -> WatchlistRepo:
@@ -43,10 +43,10 @@ def test_import_dedups_and_remove():
 
 def test_rank_universe_by_ivr_then_liquidity():
     m = {
-        "A": IVMetrics("A", 0.60, None, 4, None),
-        "B": IVMetrics("B", 0.20, None, 5, None),
-        "C": IVMetrics("C", None, None, None, None),  # no IVR -> excluded
-        "D": IVMetrics("D", 0.60, None, 5, None),  # ties A on IVR, higher liquidity
+        "A": IVMetrics("A", 0.60, 0.60, 0.40, 0.20, 0.80, liquidity_rating=4),
+        "B": IVMetrics("B", 0.20, 0.20, 0.25, 0.15, 0.65, liquidity_rating=5),
+        "C": IVMetrics("C", None, None, None, None, None, liquidity_rating=3),  # no IVR -> excluded
+        "D": IVMetrics("D", 0.60, 0.60, 0.40, 0.20, 0.80, liquidity_rating=5),  # ties A on IVR, higher liquidity
     }
     assert rank_universe(m, top_n=2) == ["D", "A"]
 

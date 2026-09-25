@@ -266,11 +266,14 @@ def create_app(
     @app.get("/api/watchlist", response_model=list[WatchlistItem])
     async def watchlist(s: Session = Depends(get_session)) -> list[WatchlistItem]:
         repo = WatchlistRepo(s)
-        if not repo.all() and app.state.metrics_session is not None:
-            from ..tt.watchlists import seed_universe_from_tastytrade
+        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        if not repo.all() and data_ib is not None and getattr(data_ib, "isConnected", lambda: False)():
+            from ..ibkr.scanner import scan_high_options_volume
 
             try:
-                await seed_universe_from_tastytrade(repo, app.state.metrics_session)
+                symbols = await scan_high_options_volume(data_ib, num_rows=25)
+                if symbols:
+                    repo.add_many(symbols)
             except Exception:  # noqa: BLE001 - fall back to the static default
                 pass
         repo.seed_default_if_empty(DEFAULT_WATCHLIST)
@@ -302,16 +305,17 @@ def create_app(
 
     @app.get("/api/watchlist/ranked", response_model=list[RankedSymbol])
     async def watchlist_ranked(s: Session = Depends(get_session)) -> list[RankedSymbol]:
-        if app.state.metrics_session is None:
+        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        if data_ib is None:
             raise HTTPException(503, "no market-metrics session configured")
-        from ..tt.metrics import MarketMetricsUnavailable, get_iv_metrics
+        from ..ibkr.metrics import get_iv_metrics
 
         repo = WatchlistRepo(s)
         repo.seed_default_if_empty(DEFAULT_WATCHLIST)
         try:
-            metrics = await get_iv_metrics(app.state.metrics_session, [e.symbol for e in repo.all()])
-        except MarketMetricsUnavailable:
-            raise HTTPException(503, "IV rank unavailable")
+            metrics = await get_iv_metrics(data_ib, [e.symbol for e in repo.all()])
+        except Exception as e:
+            raise HTTPException(503, f"IV rank unavailable: {e}")
         items = [
             RankedSymbol(
                 symbol=m.symbol, iv_rank=m.iv_rank,
@@ -323,14 +327,18 @@ def create_app(
         return items
 
     @app.get("/api/tastytrade-watchlists", response_model=list[TastytradeWatchlist])
-    async def tastytrade_watchlists() -> list[TastytradeWatchlist]:
-        # Public watchlists are a live-only service -> use the prod read-only session.
-        if app.state.metrics_session is None:
+    @app.get("/api/ibkr-scanner", response_model=list[TastytradeWatchlist])
+    async def ibkr_scanner_watchlists() -> list[TastytradeWatchlist]:
+        data_ib = getattr(app.state.client, "data_ib", None) or app.state.metrics_session
+        if data_ib is None:
             raise HTTPException(503, "no production session configured for watchlists")
-        from ..tt.watchlists import get_public_watchlists
+        from ..ibkr.scanner import scan_high_options_volume
 
-        wls = await get_public_watchlists(app.state.metrics_session)
-        return [TastytradeWatchlist(**w) for w in wls]
+        try:
+            symbols = await scan_high_options_volume(data_ib, num_rows=30)
+        except Exception:
+            symbols = DEFAULT_WATCHLIST
+        return [TastytradeWatchlist(name="High Options Volume (IBKR)", group="Popular", symbols=symbols)]
 
     # --- settings (manage the agent's strategy / risk / capital / scheduler) ---
     def _settings_out(rt: Runtime) -> SettingsOut:
@@ -493,8 +501,8 @@ def _default_app() -> FastAPI:
     load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
 
     from ..db.session import init_db, make_engine, session_factory
+    from ..ibkr.client import IBKRClient
     from ..settings import load_settings
-    from ..tt.client import from_settings, metrics_session_from_env
 
     settings = load_settings()
     engine = make_engine()
@@ -505,12 +513,8 @@ def _default_app() -> FastAPI:
         strategy=settings.strategy_params(),
     )
 
-    client = metrics_session = None
-    try:
-        client = from_settings(settings)
-        metrics_session = metrics_session_from_env()
-    except Exception:  # noqa: BLE001 - API still serves read endpoints without a broker
-        pass
+    client = IBKRClient(settings)
+    metrics_session = client.data_ib
 
     return create_app(
         session_factory(engine), runtime, client=client, metrics_session=metrics_session

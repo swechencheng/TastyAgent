@@ -1,0 +1,179 @@
+"""Market data via IBKR: underlying prices, option chain parameters, quotes, and Greeks.
+
+Streams real-time option ticks (including tick 106 for Greeks) and extracts
+bid, ask, delta, and implied volatility for strategy construction.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from decimal import Decimal
+import logging
+from typing import Dict, List, Optional, Tuple
+
+from ib_async import IB, Option, Stock
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OptionSnapshot:
+    con_id: int = 0
+    local_symbol: str = ""
+    strike: float = 0.0
+    right: str = ""  # 'C' or 'P'
+    expiration: str = ""  # 'YYYYMMDD'
+    streamer_symbol: str = ""
+    bid: Optional[Decimal] = None
+    ask: Optional[Decimal] = None
+    delta: Optional[float] = None
+    implied_vol: Optional[float] = None
+    model_price: Optional[float] = None
+
+    def __post_init__(self):
+        if not self.streamer_symbol:
+            self.streamer_symbol = self.local_symbol or str(self.con_id)
+
+    @property
+    def complete(self) -> bool:
+        return self.bid is not None and self.ask is not None and self.delta is not None
+
+    @property
+    def mid(self) -> Optional[Decimal]:
+        if self.bid is None or self.ask is None:
+            return None
+        return (self.bid + self.ask) / 2
+
+
+async def get_underlying_price(ib: IB, symbol: str, timeout: float = 6.0) -> Decimal:
+    """Fetch the market price of an underlying stock via real-time market data or historical fallback."""
+    contract = Stock(symbol, "SMART", "USD")
+    await asyncio.wait_for(ib.qualifyContractsAsync(contract), timeout=timeout / 2)
+
+    # Allow delayed streaming data if live subscription is not present
+    ib.reqMarketDataType(3)
+
+    ticker = ib.reqMktData(contract, genericTickList="", snapshot=False)
+    end_time = asyncio.get_event_loop().time() + min(timeout, 3.0)
+
+    try:
+        while asyncio.get_event_loop().time() < end_time:
+            await asyncio.sleep(0.2)
+            if ticker.bid is not None and ticker.ask is not None and ticker.bid > 0 and ticker.ask > 0:
+                return Decimal(str((ticker.bid + ticker.ask) / 2))
+            if ticker.last is not None and ticker.last > 0:
+                return Decimal(str(ticker.last))
+            if ticker.close is not None and ticker.close > 0:
+                return Decimal(str(ticker.close))
+    finally:
+        ib.cancelMktData(contract)
+
+    # Check marketPrice
+    mp = ticker.marketPrice()
+    if mp and mp > 0 and not (isinstance(mp, float) and (mp != mp)):  # check not nan
+        return Decimal(str(mp))
+
+    # Fallback to historical daily bar close (available for all symbols without Level 1 live quote subscription)
+    try:
+        bars = await asyncio.wait_for(
+            ib.reqHistoricalDataAsync(contract, endDateTime="", durationStr="2 D", barSizeSetting="1 day", whatToShow="TRADES", useRTH=True),
+            timeout=timeout,
+        )
+        if bars:
+            return Decimal(str(bars[-1].close))
+    except Exception as e:
+        logger.debug("Historical price fallback failed for %s: %s", symbol, e)
+
+    raise RuntimeError(f"Could not determine underlying market price for {symbol}")
+
+
+async def get_option_chain_parameters(
+    ib: IB, symbol: str, timeout: float = 10.0
+) -> Tuple[List[str], List[float]]:
+    """Retrieve available expirations and strikes for the underlying symbol."""
+    stock = Stock(symbol, "SMART", "USD")
+    await asyncio.wait_for(ib.qualifyContractsAsync(stock), timeout=timeout / 2)
+    chains = await asyncio.wait_for(
+        ib.reqSecDefOptParamsAsync(stock.symbol, "", stock.secType, stock.conId),
+        timeout=timeout,
+    )
+    if not chains:
+        return [], []
+
+    # Prefer SMART exchange chain
+    chain = next((c for c in chains if c.exchange == "SMART"), chains[0])
+    expirations = sorted(chain.expirations)
+    strikes = sorted(chain.strikes)
+    return expirations, strikes
+
+
+async def snapshot_options(
+    ib: IB,
+    contracts: List[Option],
+    timeout: float = 10.0,
+) -> Dict[int, OptionSnapshot]:
+    """Collect bid, ask, and Greeks for a list of qualified Option contracts.
+
+    Uses genericTickList="106" to request option model Greeks.
+    """
+    if not contracts:
+        return {}
+
+    snaps: Dict[int, OptionSnapshot] = {
+        c.conId: OptionSnapshot(
+            con_id=c.conId,
+            local_symbol=c.localSymbol or f"{c.symbol}_{c.right}_{c.strike}_{c.lastTradeDateOrContractMonth}",
+            strike=float(c.strike),
+            right=c.right,
+            expiration=c.lastTradeDateOrContractMonth,
+        )
+        for c in contracts
+    }
+
+    tickers = [ib.reqMktData(c, genericTickList="106", snapshot=False) for c in contracts]
+    end_time = asyncio.get_event_loop().time() + timeout
+
+    try:
+        while asyncio.get_event_loop().time() < end_time:
+            await asyncio.sleep(0.3)
+            all_done = True
+            for c, t in zip(contracts, tickers):
+                snap = snaps[c.conId]
+                if t.bid is not None and t.bid > 0:
+                    snap.bid = Decimal(str(t.bid))
+                if t.ask is not None and t.ask > 0:
+                    snap.ask = Decimal(str(t.ask))
+
+                # Check Greeks (model, bid, or ask)
+                greeks = t.modelGreeks or t.bidGreeks or t.askGreeks
+                if greeks and greeks.delta is not None:
+                    snap.delta = float(greeks.delta)
+                    snap.implied_vol = float(greeks.impliedVol) if greeks.impliedVol is not None else None
+                    snap.model_price = float(greeks.optPrice) if greeks.optPrice is not None else None
+
+                if not snap.complete:
+                    all_done = False
+
+            if all_done:
+                break
+    finally:
+        for c in contracts:
+            ib.cancelMktData(c)
+
+    return snaps
+
+
+def select_by_delta(
+    options: List[Option],
+    snaps: Dict[int, OptionSnapshot],
+    target_delta: float,
+) -> Optional[Option]:
+    """Find the option in the list whose absolute delta is closest to target_delta."""
+    with_delta = [
+        o for o in options
+        if (s := snaps.get(o.conId)) and s.delta is not None
+    ]
+    if not with_delta:
+        return None
+    return min(with_delta, key=lambda o: abs(abs(snaps[o.conId].delta or 0.0) - target_delta))

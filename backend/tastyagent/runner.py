@@ -1,11 +1,9 @@
-"""The cycle tick: one full pass of the agent.
+"""The cycle tick: one full pass of the TastyAgent with Interactive Brokers.
 
-gather account state -> build market context -> generate candidates ->
-orchestrator.run_cycle (pre-guardrail / LLM / post-LLM re-validation) ->
-executor (mode-routed placement / approval queue) -> reconcile fills ->
-persist an equity snapshot.
-
-This is the single function the scheduler (or the API trigger) calls each interval.
+gather account state -> build market context (IBKR Market Scanner & IV Rank) ->
+generate candidates (IBKR Greeks/Chains) -> orchestrator.run_cycle ->
+executor (IBKRPlacer with walk-the-book & 50% Take Profit) -> reconcile fills ->
+audit take-profit orders -> persist equity snapshot.
 """
 
 from __future__ import annotations
@@ -13,169 +11,192 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from datetime import date
+import logging
+from typing import Optional
 
+from ib_async import Option
 from sqlalchemy.orm import Session
 
-from tastytrade.instruments import OptionType as TTOptionType, get_option_chain
-
 from .config import TradingMode
-from .db.models import EquitySnapshot
+from .db.models import EquitySnapshot, Trade, TradeLeg, TradeStatus
 from .decision.context import DEFAULT_WATCHLIST, gather_context, rank_universe
 from .decision.orchestrator import PortfolioInput, run_cycle
 from .execution.executor import Executor
-from .execution.exit_manager import PositionMark, RollResult, manage_exits
-from .execution.sandbox_placer import SandboxPlacer, match_option
+from .execution.exit_manager import (
+    PositionMark,
+    RollResult,
+    audit_take_profit_orders,
+    manage_exits,
+)
 from .execution.tracker import reconcile_fills
+from .ibkr.client import IBKRClient
+from .ibkr.marketdata import (
+    get_option_chain_parameters,
+    get_underlying_price,
+    select_by_delta,
+    snapshot_options,
+)
+from .ibkr.placer import IBKRPlacer
+from .ibkr.scanner import scan_high_options_volume
 from .models import OptionType
 from .portfolio.benchmark import latest_sp500_close
 from .portfolio.ledger import Ledger
 from .portfolio.pnl import summarize
 from .portfolio.watchlist import WatchlistRepo
-from .strategy.candidates import build_strangle_candidate, generate_candidates, pick_expiration
+from .strategy.candidates import (
+    build_strangle_candidate,
+    generate_candidates,
+    pick_expiration,
+)
 from .strategy.exits import RollKind
-from .tt.marketdata import get_underlying_price, select_by_delta, snapshot_options
+
+logger = logging.getLogger(__name__)
 
 
-async def _live_mark(client, trade) -> PositionMark:
-    """Mark a position: total cost-to-close (sum of leg mids) + the tested short leg."""
-    chain = await get_option_chain(client.session, trade.symbol)
-    matched = [(leg, match_option(chain, leg)) for leg in trade.legs]
-    snaps = await snapshot_options(
-        client.session, [opt.streamer_symbol for _, opt in matched], timeout=8.0
+def _format_expiration(exp: str) -> str:
+    return exp.replace("-", "")
+
+
+async def _qualify_trade_leg(client: IBKRClient, symbol: str, leg: TradeLeg) -> Option:
+    right = "P" if leg.option_type.lower() == "put" else "C"
+    opt = Option(
+        symbol=symbol,
+        lastTradeDateOrContractMonth=_format_expiration(str(leg.expiration)),
+        strike=round(float(leg.strike), 2),
+        right=right,
+        exchange="SMART",
+        currency="USD",
     )
-    total = 0.0
+    await client.data_ib.qualifyContractsAsync(opt)
+    return opt
+
+
+async def _live_mark(client: IBKRClient, trade: Trade) -> PositionMark:
+    """Mark an open position using live quotes and Greeks from IBKR."""
+    opts = [await _qualify_trade_leg(client, trade.symbol, leg) for leg in trade.legs]
+    snaps = await snapshot_options(client.data_ib, opts, timeout=6.0)
+
+    total_cost_per_share = 0.0
     short_deltas: list[tuple[OptionType, float]] = []
-    for leg, opt in matched:
-        snap = snaps.get(opt.streamer_symbol)
+
+    for leg, opt in zip(trade.legs, opts):
+        snap = snaps.get(opt.conId)
         if snap is None or snap.mid is None:
-            raise RuntimeError("incomplete mark")
-        total += float(snap.mid)
-        if str(leg.action).startswith("sell") and snap.delta is not None:
+            raise RuntimeError(f"Incomplete mark for {trade.symbol} leg {opt.conId}")
+        total_cost_per_share += float(snap.mid)
+        if "sell" in str(leg.action).lower() and snap.delta is not None:
             short_deltas.append((OptionType(leg.option_type), abs(snap.delta)))
 
     tested_side = max_short_delta = None
     if short_deltas:
         tested_side, max_short_delta = max(short_deltas, key=lambda x: x[1])
+
     return PositionMark(
-        cost_to_close=total * 100 * trade.contracts,
+        cost_to_close=round(total_cost_per_share * 100 * trade.contracts, 2),
         max_short_delta=max_short_delta,
         tested_side=tested_side,
     )
 
 
-async def _build_roll_candidate(client, trade, roll_kind, mark, params):
-    """Build the replacement strangle for a roll, or None if no good roll exists."""
+async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: RollKind, mark: PositionMark, params):
+    """Build the replacement strangle for a roll."""
     sym = trade.symbol
     today = date.today()
-    chain = await get_option_chain(client.session, sym)
-    underlying = float(await get_underlying_price(client.session, sym))
-    lo, hi = underlying * 0.55, underlying * 1.45
+    raw_exps, strikes = await get_option_chain_parameters(client.data_ib, sym)
+    if not raw_exps or not strikes:
+        return None
+
+    underlying = float(await get_underlying_price(client.data_ib, sym))
+    lo, hi = underlying * 0.7, underlying * 1.3
+    eligible_strikes = [s for s in strikes if lo <= s <= hi]
+    if not eligible_strikes:
+        return None
 
     if roll_kind is RollKind.OUT:
-        exp = pick_expiration(sorted(chain), params, today)  # next ~45 DTE cycle
-        if exp is None:
+        from .strategy.candidates import _parse_exp_date
+        parsed_exps = [_parse_exp_date(e) for e in raw_exps]
+        exp_date = pick_expiration(parsed_exps, params, today)
+        if exp_date is None:
             return None
-        opts = [o for o in chain[exp] if lo <= float(o.strike_price) <= hi]
-        snaps = await snapshot_options(
-            client.session, [o.streamer_symbol for o in opts], timeout=8.0
-        )
-        put = select_by_delta(
-            [o for o in opts if o.option_type == TTOptionType.PUT], snaps, params.target_short_delta
-        )
-        call = select_by_delta(
-            [o for o in opts if o.option_type == TTOptionType.CALL], snaps, params.target_short_delta
-        )
-        if put is None or call is None:
+
+        exp_str = exp_date.strftime("%Y%m%d")
+        contracts = [Option(sym, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
+        await client.data_ib.qualifyContractsAsync(*contracts)
+        snaps = await snapshot_options(client.data_ib, contracts, timeout=8.0)
+
+        puts = [c for c in contracts if c.right == "P"]
+        calls = [c for c in contracts if c.right == "C"]
+        p = select_by_delta(puts, snaps, params.target_short_delta)
+        c = select_by_delta(calls, snaps, params.target_short_delta)
+        if not p or not c:
             return None
-        return build_strangle_candidate(
-            sym, underlying, 1.0, (exp - today).days, put, call,
-            snaps[put.streamer_symbol], snaps[call.streamer_symbol],
-        )
 
-    # ROLL UNTESTED: keep the current expiration and the tested strike, pull the
-    # untested short leg toward the money for extra credit.
-    tested_side = mark.tested_side
-    exp = min((leg.expiration for leg in trade.legs), default=None)
-    if tested_side is None or exp is None or exp not in chain:
-        return None
-    tested_leg = next((leg for leg in trade.legs if OptionType(leg.option_type) is tested_side), None)
-    if tested_leg is None:
-        return None
-    opts = [o for o in chain[exp] if lo <= float(o.strike_price) <= hi]
-    snaps = await snapshot_options(client.session, [o.streamer_symbol for o in opts], timeout=8.0)
+        sp, sc = snaps.get(p.conId), snaps.get(c.conId)
+        if not sp or not sc:
+            return None
 
-    tt_tested = TTOptionType.PUT if tested_side is OptionType.PUT else TTOptionType.CALL
-    tested_opt = next(
-        (o for o in opts if o.option_type == tt_tested and abs(float(o.strike_price) - tested_leg.strike) < 0.01),
-        None,
-    )
-    if tested_opt is None or tested_opt.streamer_symbol not in snaps:
-        return None
-    untested_tt = TTOptionType.CALL if tested_side is OptionType.PUT else TTOptionType.PUT
-    untested_opt = select_by_delta(
-        [o for o in opts if o.option_type == untested_tt], snaps, params.target_short_delta
-    )
-    if untested_opt is None:
-        return None
+        return build_strangle_candidate(sym, underlying, 1.0, (exp_date - today).days, p, c, sp, sc)
 
-    put, call = (
-        (tested_opt, untested_opt) if tested_side is OptionType.PUT else (untested_opt, tested_opt)
-    )
-    return build_strangle_candidate(
-        sym, underlying, 1.0, (exp - today).days, put, call,
-        snaps[put.streamer_symbol], snaps[call.streamer_symbol],
-    )
+    return None
 
 
 async def run_one_cycle(
     *,
-    client,
-    metrics_session,
+    client: IBKRClient,
+    metrics_session=None,  # Kept for compatibility; client.data_ib is used
     session: Session,
     runtime,
     watchlist: list[str] | None = None,
 ) -> dict:
     params = runtime.strategy
-    # Sandbox quotes are 15-min delayed and artificially wide — relax the (only)
-    # unreliable liquidity signal so forward-testing can place. Strict in live.
     if runtime.mode is TradingMode.SANDBOX:
         params = replace(params, max_bid_ask_width_pct=0.50)
     limits = runtime.risk_limits()
     ledger = Ledger(session)
 
-    # Universe = the editable watchlist (seeded with the curated default on first run);
-    # an explicit watchlist arg overrides it (used by scripts/tests).
+    # 1. Watchlist seeding: if empty, seed from IBKR Market Scanner
     repo = WatchlistRepo(session)
-    if not repo.all() and metrics_session is not None:
-        from .tt.watchlists import seed_universe_from_tastytrade
-
+    if not repo.all() and client.data_ib.isConnected():
         try:
-            await seed_universe_from_tastytrade(repo, metrics_session)
-        except Exception:  # noqa: BLE001 - fall back to the static default
-            pass
+            scan_syms = await scan_high_options_volume(client.data_ib, num_rows=25)
+            if scan_syms:
+                repo.add_many(scan_syms)
+        except Exception as e:
+            logger.debug("Scanner seeding failed: %s", e)
     repo.seed_default_if_empty(DEFAULT_WATCHLIST)
     universe = watchlist or repo.symbols() or DEFAULT_WATCHLIST
 
-    # 1. working capital. The sandbox seeds ~$1M with no withdrawal endpoint, so the
-    # agent sizes/accounts against a configured working capital, not the broker balance.
-    account = await client.primary_account()
+    # 2. Working Capital & Account Balance
     net_liq = runtime.starting_capital
 
-    # 2. manage existing positions FIRST — close winners per the profit schedule so
-    # freed buying power is available to the entry stage. Only in auto-placing modes;
-    # taking profit shouldn't wait behind the approval queue's open gate.
+    # 3. Position & Exit Management (with Attached Take-Profit)
     exit_outcomes = []
+    tp_alerts = []
     placer = (
-        SandboxPlacer(client)
+        IBKRPlacer(
+            client=client,
+            walk_step=getattr(runtime, "ibkr_walk_step", 0.01),
+            walk_interval=getattr(runtime, "ibkr_walk_interval", 5),
+            attach_tp=getattr(runtime, "ibkr_attach_tp", True),
+            tp_pct=getattr(runtime, "ibkr_tp_pct", 0.50),
+        )
         if runtime.mode in (TradingMode.SANDBOX, TradingMode.LIVE_AUTO)
         else runtime.placer
     )
-    if isinstance(placer, SandboxPlacer):
+
+    if isinstance(placer, IBKRPlacer):
+        # Audit open positions for missing Take-Profit orders
+        try:
+            open_trades = client.trading_ib.openTrades()
+            active_ids = {str(t.order.orderId) for t in open_trades if t.isActive()}
+            tp_alerts = await audit_take_profit_orders(ledger, active_ids)
+        except Exception as e:
+            logger.debug("Take-profit audit failed: %s", e)
 
         async def _roll(trade, roll_kind, mark):
             new_cand = await _build_roll_candidate(client, trade, roll_kind, mark, params)
             if new_cand is None or new_cand.net_credit <= 0:
-                return None  # no credit roll -> exit_manager falls back to close
+                return None
             await placer.close(trade, mark.cost_to_close)
             new_order_id = await placer.open_candidate(new_cand, trade.contracts)
             return RollResult(
@@ -198,32 +219,31 @@ async def run_one_cycle(
         net_liq=net_liq, bp_used=bp_used, positions_by_symbol=ledger.positions_by_symbol()
     )
 
-    # 3. market context (IV rank for the WHOLE universe, one batched call) then do the
-    # expensive chain/greeks work only on the top-N highest-IVR liquid names.
-    metrics, regime = await gather_context(metrics_session, params, universe)
+    # 4. Market Context (IV Rank for universe via IBKR 1-year historical IV + cache)
+    metrics, regime = await gather_context(client.data_ib, params, universe)
     top_symbols = rank_universe(metrics, params.universe_top_n)
     candidates = await generate_candidates(
-        client, metrics_session, params, top_symbols, metrics=metrics
+        client, client.data_ib, params, top_symbols, metrics=metrics
     )
 
-    # 4. decide
+    # 5. Decision cycle (LLM / Guardrails)
     result = await run_cycle(candidates, portfolio, regime, params, limits)
-    decision = ledger.record_decision(runtime.mode, result.commentary, result.considered)
+    decision = ledger.record_decision(runtime.mode.value if hasattr(runtime.mode, "value") else str(runtime.mode), result.commentary, result.considered)
 
-    # 5. execute new entries (mode-routed; reuses the placer from the exit step)
+    # 6. Execute new entries
     outcomes = await Executor(ledger, runtime.mode, placer).execute_cycle(result, decision)
 
-    # 6. reconcile fills against live broker orders
+    # 7. Reconcile fills against active IBKR orders
     try:
-        live = await account.get_live_orders(client.session)
-        status_map = {str(o.id): getattr(o.status, "value", str(o.status)) for o in live}
+        open_trades = client.trading_ib.openTrades()
+        status_map = {str(t.order.orderId): t.orderStatus.status for t in open_trades}
         reconcile_fills(ledger, status_map)
-    except Exception:  # noqa: BLE001 - reconciliation is best-effort
-        pass
+    except Exception as e:
+        logger.debug("Fill reconciliation skipped: %s", e)
 
-    # 7. equity snapshot (+ S&P close) for the dashboard's equity-vs-S&P curve
+    # 8. Equity snapshot
     summary = summarize(ledger.all_trades())
-    sp_close = await asyncio.to_thread(latest_sp500_close)  # best-effort, off the event loop
+    sp_close = await asyncio.to_thread(latest_sp500_close)
     session.add(
         EquitySnapshot(
             net_liq=runtime.starting_capital + summary.realized_pnl + summary.unrealized_pnl,
@@ -240,6 +260,7 @@ async def run_one_cycle(
         "rejected": len(result.rejected),
         "exits": [o.__dict__ for o in exit_outcomes],
         "closed": sum(1 for o in exit_outcomes if o.action == "closed"),
+        "alerts": tp_alerts,
         "outcomes": [o.__dict__ for o in outcomes],
         "commentary": result.commentary,
         "net_liq": net_liq,

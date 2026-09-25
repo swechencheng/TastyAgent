@@ -56,9 +56,25 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     mode: TradingMode = Field(default=TradingMode.SANDBOX, alias="TASTYAGENT_MODE")
-    tastytrade_username: str = Field(default="", alias="TASTYTRADE_USERNAME")
-    tastytrade_password: str = Field(default="", alias="TASTYTRADE_PASSWORD")
-    tastytrade_account: str = Field(default="", alias="TASTYTRADE_ACCOUNT")
+
+    # IBKR Connection & Trading (default to local gateway / TWS)
+    ibkr_host: str = Field(default="127.0.0.1", alias="IBKR_HOST")
+    ibkr_port: int = Field(default=4002, alias="IBKR_PORT")
+    ibkr_client_id: int = Field(default=55, alias="IBKR_CLIENT_ID")
+    ibkr_account: str = Field(default="", alias="IBKR_ACCOUNT")
+
+    # IBKR Real-time Market Data Connection (dual-gateway support)
+    ibkr_data_host: str = Field(default="127.0.0.1", alias="IBKR_DATA_HOST")
+    ibkr_data_port: int = Field(default=4001, alias="IBKR_DATA_PORT")
+    ibkr_data_client_id: int = Field(default=56, alias="IBKR_DATA_CLIENT_ID")
+
+    # IBKR Market Scanner & Execution
+    ibkr_scan_code: str = Field(default="OPT_VOLUME_MOST_ACTIVE", alias="IBKR_SCAN_CODE")
+    ibkr_scan_rows: int = Field(default=25, alias="IBKR_SCAN_ROWS")
+    ibkr_walk_step: float = Field(default=0.01, alias="IBKR_WALK_STEP")
+    ibkr_walk_interval: int = Field(default=5, alias="IBKR_WALK_INTERVAL")
+    ibkr_attach_tp: bool = Field(default=True, alias="IBKR_ATTACH_TP")
+    ibkr_tp_pct: float = Field(default=0.50, alias="IBKR_TP_PCT")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     openrouter_model: str = Field(
         default="deepseek/deepseek-v4.1-flash", alias="OPENROUTER_MODEL"

@@ -69,6 +69,8 @@ class Trade(Base):
     realized_pnl: Mapped[float | None] = mapped_column(Float, default=None)
 
     broker_order_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    tp_order_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    order_ref: Mapped[str | None] = mapped_column(String(64), default=None)
     opened_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

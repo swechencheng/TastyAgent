@@ -1,39 +1,55 @@
-"""Candidate generation: scan a watchlist into concrete CandidateTrades.
+"""Candidate generation: scan a watchlist into concrete CandidateTrades using IBKR data.
 
-For each underlying we pull IV rank (prod metrics), the option chain + streamed
-greeks/quotes (sandbox), pick the ~target-DTE expiration, choose short strikes near
-the target delta, and assemble a short strangle. The pure builders are unit-tested;
-the live scanner is a thin async wrapper around them.
-
-Known approximations (sandbox limits, refine later):
-- Buying-power reduction for undefined-risk strangles is *estimated*; the real figure
-  comes from the dry-run preflight at placement time.
-- Open interest / volume aren't reliably streamable in the sandbox, so liquidity uses
-  the (real) bid/ask width plus placeholder OI/volume that pass the floor. The width
-  check — the most important liquidity signal — is real.
+For each underlying we pull IV rank (via 1-year historical IV), the option chain
+parameters, streamed Greeks/quotes via IBKR market data, pick the ~target-DTE
+expiration, choose short strikes near target delta, and assemble strangles, credit
+spreads, or iron condors.
 """
 
 from __future__ import annotations
 
 import asyncio
 from datetime import date, timedelta
+from decimal import Decimal
+import logging
+from typing import List, Optional
 
-from tastytrade.instruments import Option, OptionType as TTOptionType, get_option_chain
+from ib_async import Option
 
 from ..config import StrategyParams
-from ..models import Action, CandidateTrade, Leg, Liquidity, OptionType, Strategy
-from ..tt.client import TastytradeClient
-from ..tt.marketdata import (
+from ..ibkr.client import IBKRClient
+from ..ibkr.marketdata import (
     OptionSnapshot,
+    get_option_chain_parameters,
     get_underlying_price,
     select_by_delta,
     snapshot_options,
 )
-from ..tt.metrics import get_iv_metrics
+from ..ibkr.metrics import get_iv_metrics
+from ..models import Action, CandidateTrade, Leg, Liquidity, OptionType, Strategy
 
-# Sandbox-limitation placeholders (see module docstring).
+logger = logging.getLogger(__name__)
+
+# Placeholders for open interest and daily volume
 _PLACEHOLDER_OI = 1000
 _PLACEHOLDER_VOL = 500
+
+
+def _parse_exp_date(exp: str | date) -> date:
+    """Parse date from YYYYMMDD string or return date object."""
+    if isinstance(exp, date):
+        return exp
+    clean = str(exp).replace("-", "")
+    return date(int(clean[:4]), int(clean[4:6]), int(clean[6:8]))
+
+
+def _get_strike(opt) -> float:
+    return float(getattr(opt, "strike", getattr(opt, "strike_price", 0.0)))
+
+
+def _get_exp(opt) -> date:
+    raw = getattr(opt, "lastTradeDateOrContractMonth", getattr(opt, "expiration_date", None))
+    return _parse_exp_date(raw)
 
 
 def pick_expiration(expirations: list[date], params: StrategyParams, today: date) -> date | None:
@@ -75,10 +91,8 @@ def build_strangle_candidate(
         return None
 
     legs = (
-        Leg(OptionType.PUT, float(put.strike_price), put.expiration_date,
-            Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
-        Leg(OptionType.CALL, float(call.strike_price), call.expiration_date,
-            Action.SELL_TO_OPEN, delta=call_snap.delta or 0.0),
+        Leg(OptionType.PUT, _get_strike(put), _get_exp(put), Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
+        Leg(OptionType.CALL, _get_strike(call), _get_exp(call), Action.SELL_TO_OPEN, delta=call_snap.delta or 0.0),
     )
     liquidity = Liquidity(
         bid_ask_width_pct=max(_width_pct(put_snap), _width_pct(call_snap)),
@@ -110,9 +124,9 @@ def build_naked_put_candidate(
     credit = float(put_snap.mid) * 100
     if credit <= 0:
         return None
-    strike = float(put.strike_price)
+    strike = _get_strike(put)
     legs = (
-        Leg(OptionType.PUT, strike, put.expiration_date, Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
+        Leg(OptionType.PUT, strike, _get_exp(put), Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
     )
     return CandidateTrade(
         symbol=symbol, strategy=Strategy.NAKED_PUT, legs=legs, dte=dte,
@@ -133,16 +147,14 @@ def build_credit_spread_candidate(
     if short_snap.mid is None or long_snap.mid is None:
         return None
     net_ps = float(short_snap.mid) - float(long_snap.mid)
-    width = abs(float(short_opt.strike_price) - float(long_opt.strike_price))
+    width = abs(_get_strike(short_opt) - _get_strike(long_opt))
     if net_ps <= 0 or width <= 0:
         return None
     credit = net_ps * 100
     max_loss = (width - net_ps) * 100
     legs = (
-        Leg(option_type, float(short_opt.strike_price), short_opt.expiration_date,
-            Action.SELL_TO_OPEN, delta=short_snap.delta or 0.0),
-        Leg(option_type, float(long_opt.strike_price), long_opt.expiration_date,
-            Action.BUY_TO_OPEN, delta=long_snap.delta or 0.0),
+        Leg(option_type, _get_strike(short_opt), _get_exp(short_opt), Action.SELL_TO_OPEN, delta=short_snap.delta or 0.0),
+        Leg(option_type, _get_strike(long_opt), _get_exp(long_opt), Action.BUY_TO_OPEN, delta=long_snap.delta or 0.0),
     )
     return CandidateTrade(
         symbol=symbol, strategy=strategy, legs=legs, dte=dte,
@@ -159,23 +171,28 @@ def build_iron_condor_candidate(
     put_short: Option, put_long: Option, call_short: Option, call_long: Option,
     snaps: dict, *, earnings_in_days: int | None = None,
 ) -> CandidateTrade | None:
-    ps, pl = snaps.get(put_short.streamer_symbol), snaps.get(put_long.streamer_symbol)
-    cs, cl = snaps.get(call_short.streamer_symbol), snaps.get(call_long.streamer_symbol)
+    def _lookup_snap(opt) -> OptionSnapshot | None:
+        con_id = getattr(opt, "conId", None)
+        streamer_sym = getattr(opt, "streamer_symbol", None)
+        return (snaps.get(con_id) if con_id else None) or snaps.get(streamer_sym)
+
+    ps, pl = _lookup_snap(put_short), _lookup_snap(put_long)
+    cs, cl = _lookup_snap(call_short), _lookup_snap(call_long)
     if not all(s is not None and s.mid is not None for s in (ps, pl, cs, cl)):
         return None
     net_ps = (float(ps.mid) + float(cs.mid)) - (float(pl.mid) + float(cl.mid))
     if net_ps <= 0:
         return None
-    put_width = abs(float(put_short.strike_price) - float(put_long.strike_price))
-    call_width = abs(float(call_short.strike_price) - float(call_long.strike_price))
+    put_width = abs(_get_strike(put_short) - _get_strike(put_long))
+    call_width = abs(_get_strike(call_short) - _get_strike(call_long))
     width = max(put_width, call_width)
     credit = net_ps * 100
     max_loss = (width - net_ps) * 100
     legs = (
-        Leg(OptionType.PUT, float(put_short.strike_price), put_short.expiration_date, Action.SELL_TO_OPEN, delta=ps.delta or 0.0),
-        Leg(OptionType.PUT, float(put_long.strike_price), put_long.expiration_date, Action.BUY_TO_OPEN, delta=pl.delta or 0.0),
-        Leg(OptionType.CALL, float(call_short.strike_price), call_short.expiration_date, Action.SELL_TO_OPEN, delta=cs.delta or 0.0),
-        Leg(OptionType.CALL, float(call_long.strike_price), call_long.expiration_date, Action.BUY_TO_OPEN, delta=cl.delta or 0.0),
+        Leg(OptionType.PUT, _get_strike(put_short), _get_exp(put_short), Action.SELL_TO_OPEN, delta=ps.delta or 0.0),
+        Leg(OptionType.PUT, _get_strike(put_long), _get_exp(put_long), Action.BUY_TO_OPEN, delta=pl.delta or 0.0),
+        Leg(OptionType.CALL, _get_strike(call_short), _get_exp(call_short), Action.SELL_TO_OPEN, delta=cs.delta or 0.0),
+        Leg(OptionType.CALL, _get_strike(call_long), _get_exp(call_long), Action.BUY_TO_OPEN, delta=cl.delta or 0.0),
     )
     return CandidateTrade(
         symbol=symbol, strategy=Strategy.IRON_CONDOR, legs=legs, dte=dte,
@@ -187,24 +204,41 @@ def build_iron_condor_candidate(
 
 
 async def _candidates_for_symbol(
-    client: TastytradeClient, params: StrategyParams, today: date, symbol: str, m
+    client: IBKRClient, params: StrategyParams, today: date, symbol: str, m
 ) -> list[CandidateTrade]:
-    """Build every feasible strategy for one underlying from a single snapshot."""
-    chain = await get_option_chain(client.session, symbol)
-    exp = pick_expiration(sorted(chain), params, today)
-    if exp is None:
+    """Build feasible options strategies for one underlying using IBKR chain and Greeks."""
+    raw_exps, strikes = await get_option_chain_parameters(client.data_ib, symbol)
+    if not raw_exps or not strikes:
         return []
 
-    underlying = float(await get_underlying_price(client.session, symbol))
-    lo, hi = underlying * 0.5, underlying * 1.5  # wide enough for ~7Δ long wings
-    opts = [o for o in chain[exp] if lo <= float(o.strike_price) <= hi]
-    puts = [o for o in opts if o.option_type == TTOptionType.PUT]
-    calls = [o for o in opts if o.option_type == TTOptionType.CALL]
-    snaps = await snapshot_options(client.session, [o.streamer_symbol for o in opts], timeout=8.0)
+    parsed_exps = [_parse_exp_date(e) for e in raw_exps]
+    exp_date = pick_expiration(parsed_exps, params, today)
+    if exp_date is None:
+        return []
 
-    dte = (exp - today).days
-    ivr = m.iv_rank
-    earn = (m.next_earnings - today).days if m.next_earnings else None
+    exp_str = exp_date.strftime("%Y%m%d")
+    underlying = float(await get_underlying_price(client.data_ib, symbol))
+    lo, hi = underlying * 0.7, underlying * 1.3
+
+    eligible_strikes = [s for s in strikes if lo <= s <= hi]
+    if not eligible_strikes:
+        return []
+
+    # Build and qualify option contracts for both Puts and Calls
+    contracts = []
+    for s in eligible_strikes:
+        contracts.append(Option(symbol, exp_str, s, "P", "SMART", currency="USD"))
+        contracts.append(Option(symbol, exp_str, s, "C", "SMART", currency="USD"))
+
+    await client.data_ib.qualifyContractsAsync(*contracts)
+    snaps = await snapshot_options(client.data_ib, contracts, timeout=8.0)
+
+    puts = [c for c in contracts if c.right == "P"]
+    calls = [c for c in contracts if c.right == "C"]
+
+    dte = (exp_date - today).days
+    ivr = m.iv_rank or 0.0
+    earn = (m.next_earnings - today).days if getattr(m, "next_earnings", None) else None
 
     p_short = select_by_delta(puts, snaps, params.target_short_delta)
     c_short = select_by_delta(calls, snaps, params.target_short_delta)
@@ -212,22 +246,22 @@ async def _candidates_for_symbol(
     c_long = select_by_delta(calls, snaps, params.spread_long_delta)
 
     def sn(o):
-        return snaps[o.streamer_symbol]
+        return snaps.get(o.conId)
 
     out: list[CandidateTrade] = []
 
-    if p_short and c_short:
+    if p_short and c_short and sn(p_short) and sn(c_short):
         out.append(build_strangle_candidate(symbol, underlying, ivr, dte, p_short, c_short, sn(p_short), sn(c_short), earnings_in_days=earn))
-    if p_short:
+    if p_short and sn(p_short):
         out.append(build_naked_put_candidate(symbol, underlying, ivr, dte, p_short, sn(p_short), earnings_in_days=earn))
-    if p_short and p_long and float(p_long.strike_price) < float(p_short.strike_price):
+    if p_short and p_long and sn(p_short) and sn(p_long) and _get_strike(p_long) < _get_strike(p_short):
         out.append(build_credit_spread_candidate(symbol, underlying, ivr, dte, p_short, p_long, sn(p_short), sn(p_long), option_type=OptionType.PUT, strategy=Strategy.PUT_CREDIT_SPREAD, earnings_in_days=earn))
-    if c_short and c_long and float(c_long.strike_price) > float(c_short.strike_price):
+    if c_short and c_long and sn(c_short) and sn(c_long) and _get_strike(c_long) > _get_strike(c_short):
         out.append(build_credit_spread_candidate(symbol, underlying, ivr, dte, c_short, c_long, sn(c_short), sn(c_long), option_type=OptionType.CALL, strategy=Strategy.CALL_CREDIT_SPREAD, earnings_in_days=earn))
     if (
         p_short and c_short and p_long and c_long
-        and float(p_long.strike_price) < float(p_short.strike_price)
-        and float(c_long.strike_price) > float(c_short.strike_price)
+        and _get_strike(p_long) < _get_strike(p_short)
+        and _get_strike(c_long) > _get_strike(c_short)
     ):
         out.append(build_iron_condor_candidate(symbol, underlying, ivr, dte, p_short, p_long, c_short, c_long, snaps, earnings_in_days=earn))
 
@@ -235,24 +269,18 @@ async def _candidates_for_symbol(
 
 
 async def generate_candidates(
-    client: TastytradeClient,
-    metrics_session,
+    client: IBKRClient,
+    metrics_session,  # Kept for signature compatibility
     params: StrategyParams,
     watchlist: list[str],
     *,
-    concurrency: int = 6,
+    concurrency: int = 5,
     metrics: dict | None = None,
 ) -> list[CandidateTrade]:
-    """Live scan: build all feasible strategies per eligible underlying, concurrently.
-
-    Each symbol yields a strangle, naked put, put/call credit spreads, and an iron
-    condor (where strikes exist); guardrails + the LLM then choose among them. A bad
-    symbol is skipped, never aborting the scan. ``metrics`` may be passed in to avoid
-    re-fetching IV rank (the runner already fetched it for the whole universe).
-    """
+    """Scan watchlist: build feasible strategies concurrently via IBKR."""
     today = date.today()
     if metrics is None:
-        metrics = await get_iv_metrics(metrics_session, watchlist) if metrics_session else {}
+        metrics = await get_iv_metrics(client.data_ib, watchlist)
     eligible = [s for s in watchlist if (m := metrics.get(s)) and m.iv_rank is not None]
 
     sem = asyncio.Semaphore(concurrency)
@@ -261,7 +289,8 @@ async def generate_candidates(
         async with sem:
             try:
                 return await _candidates_for_symbol(client, params, today, symbol, metrics[symbol])
-            except Exception:  # noqa: BLE001 - skip a bad symbol, don't abort the scan
+            except Exception as e:
+                logger.debug("Failed candidate generation for %s: %s", symbol, e)
                 return []
 
     results = await asyncio.gather(*(guarded(s) for s in eligible))

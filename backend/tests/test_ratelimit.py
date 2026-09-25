@@ -1,6 +1,6 @@
 import pytest
 
-from tastyagent.tt.ratelimit import AsyncTokenBucket
+from tastyagent.ibkr.ratelimit import AsyncTokenBucket
 
 
 class FakeClock:

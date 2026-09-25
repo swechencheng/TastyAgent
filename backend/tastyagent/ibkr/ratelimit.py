@@ -1,17 +1,13 @@
 """Async token-bucket rate limiter.
 
-TastyTrade does not publish official rate limits and IP-blocks on repeated auth
-failures, so every outbound API call is funnelled through this limiter. Default
-~2 requests/second matches what community SDKs self-throttle to.
-
-The clock is injectable so the refill behaviour is deterministically testable.
+Used to throttle requests to broker gateways and avoid pacing violations.
 """
 
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Callable
+import time
 
 
 class AsyncTokenBucket:

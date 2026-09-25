@@ -10,7 +10,7 @@ from __future__ import annotations
 from statistics import fmean
 
 from ..config import StrategyParams
-from ..tt.metrics import IVMetrics, get_iv_metrics
+from ..ibkr.metrics import IVMetrics, get_iv_metrics
 
 # A liquid, diversified default universe. Override via gather_context(watchlist=...).
 DEFAULT_WATCHLIST = [
