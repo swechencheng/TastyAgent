@@ -17,12 +17,15 @@ Design notes:
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from ..models import CandidateTrade
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
@@ -186,11 +189,15 @@ async def select_trades(
 
     user_text, id_map = build_user_message(candidates, portfolio, regime)
 
-    api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
     base_url = base_url or os.environ.get("OPENROUTER_BASE_URL", DEFAULT_BASE_URL)
     model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
 
     if client is None:
+        api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+        if not api_key:
+            logger.warning("OPENROUTER_API_KEY is not set. Returning empty selection.")
+            return LLMDecision(selections=[], commentary="OPENROUTER_API_KEY not set in environment."), id_map
+
         headers = {}
         site_url = os.environ.get("OPENROUTER_SITE_URL")
         app_name = os.environ.get("OPENROUTER_APP_NAME", "TastyAgent")
@@ -201,7 +208,7 @@ async def select_trades(
 
         client = AsyncOpenAI(
             base_url=base_url,
-            api_key=api_key or "missing-key",
+            api_key=api_key,
             default_headers=headers if headers else None,
         )
 

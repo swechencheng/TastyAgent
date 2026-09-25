@@ -218,23 +218,34 @@ async def _candidates_for_symbol(
 
     exp_str = exp_date.strftime("%Y%m%d")
     underlying = float(await get_underlying_price(client.data_ib, symbol))
-    lo, hi = underlying * 0.7, underlying * 1.3
 
-    eligible_strikes = [s for s in strikes if lo <= s <= hi]
-    if not eligible_strikes:
+    # Fetch valid option contracts directly via reqContractDetailsAsync to avoid invalid strike errors
+    pattern = Option(symbol, exp_str, right="", exchange="SMART")
+    try:
+        cds = await client.data_ib.reqContractDetailsAsync(pattern)
+        contracts = [cd.contract for cd in cds]
+    except Exception as e:
+        logger.debug("Failed to fetch option contract details for %s %s: %s", symbol, exp_str, e)
+        contracts = []
+
+    if not contracts:
+        lo, hi = underlying * 0.7, underlying * 1.3
+        eligible_strikes = [s for s in strikes if lo <= s <= hi]
+        contracts = [Option(symbol, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
+        await client.data_ib.qualifyContractsAsync(*contracts)
+        contracts = [c for c in contracts if c.conId > 0]
+
+    if not contracts:
         return []
 
-    # Build and qualify option contracts for both Puts and Calls
-    contracts = []
-    for s in eligible_strikes:
-        contracts.append(Option(symbol, exp_str, s, "P", "SMART", currency="USD"))
-        contracts.append(Option(symbol, exp_str, s, "C", "SMART", currency="USD"))
+    # Focus snapshot on contracts within +/- 25% of underlying spot
+    lo, hi = underlying * 0.75, underlying * 1.25
+    relevant_contracts = [c for c in contracts if lo <= c.strike <= hi] or contracts
 
-    await client.data_ib.qualifyContractsAsync(*contracts)
-    snaps = await snapshot_options(client.data_ib, contracts, timeout=8.0)
+    snaps = await snapshot_options(client.data_ib, relevant_contracts, timeout=8.0)
 
-    puts = [c for c in contracts if c.right == "P"]
-    calls = [c for c in contracts if c.right == "C"]
+    puts = [c for c in relevant_contracts if c.right == "P"]
+    calls = [c for c in relevant_contracts if c.right == "C"]
 
     dte = (exp_date - today).days
     ivr = m.iv_rank or 0.0

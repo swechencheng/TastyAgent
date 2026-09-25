@@ -20,6 +20,10 @@ class Runtime:
     risk: RiskLimits = field(default_factory=RiskLimits)
     scheduler_interval_seconds: float = 300.0
     scheduler_market_hours_only: bool = True
+    ibkr_walk_step: float = 0.01
+    ibkr_walk_interval: int = 5
+    ibkr_attach_tp: bool = True
+    ibkr_tp_pct: float = 0.50
     placer: Placer | None = None  # set when a live/sandbox broker adapter is wired
 
     def risk_limits(self) -> RiskLimits:

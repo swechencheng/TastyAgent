@@ -32,8 +32,9 @@ class Ledger:
         return ev
 
     # --- decisions ---
-    def record_decision(self, mode: TradingMode, commentary: str, considered: int) -> Decision:
-        d = Decision(mode=mode.value, commentary=commentary, considered=considered)
+    def record_decision(self, mode: TradingMode | str, commentary: str, considered: int) -> Decision:
+        mode_val = mode.value if hasattr(mode, "value") else str(mode)
+        d = Decision(mode=mode_val, commentary=commentary, considered=considered)
         self.s.add(d)
         self.s.commit()
         return d
@@ -44,17 +45,18 @@ class Ledger:
         candidate: CandidateTrade,
         contracts: int,
         rationale: str,
-        mode: TradingMode,
+        mode: TradingMode | str,
         status: TradeStatus,
         decision: Decision | None,
     ) -> Trade:
+        mode_val = mode.value if hasattr(mode, "value") else str(mode)
         trade = Trade(
             decision_id=decision.id if decision else None,
             symbol=candidate.symbol,
             strategy=candidate.strategy.value,
             contracts=contracts,
             status=status,
-            mode=mode.value,
+            mode=mode_val,
             rationale=rationale,
             entry_credit=candidate.max_profit * contracts,
             buying_power=candidate.buying_power_reduction * contracts,

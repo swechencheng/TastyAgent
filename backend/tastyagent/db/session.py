@@ -22,6 +22,19 @@ def make_engine(url: str | None = None, *, echo: bool = False) -> Engine:
 
 def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    with engine.connect() as conn:
+        try:
+            from sqlalchemy import text
+            res = conn.execute(text("PRAGMA table_info(trades)"))
+            cols = {row[1] for row in res.fetchall()}
+            if cols:
+                if "tp_order_id" not in cols:
+                    conn.execute(text("ALTER TABLE trades ADD COLUMN tp_order_id TEXT"))
+                if "order_ref" not in cols:
+                    conn.execute(text("ALTER TABLE trades ADD COLUMN order_ref TEXT"))
+                conn.commit()
+        except Exception:
+            pass
 
 
 def session_factory(engine: Engine) -> sessionmaker[Session]:

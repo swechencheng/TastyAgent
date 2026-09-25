@@ -119,11 +119,13 @@ export interface RankedSymbol {
   liquidity_rating: number | null;
 }
 
-export interface TastytradeWatchlist {
+export interface ScannerWatchlist {
   name: string;
   group: string | null;
   symbols: string[];
 }
+
+export type TastytradeWatchlist = ScannerWatchlist;
 
 export const addToWatchlist = (symbol: string) => post("/api/watchlist", { symbol });
 export const removeFromWatchlist = (symbol: string) =>

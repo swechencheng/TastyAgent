@@ -11,7 +11,7 @@ import {
   importWatchlist,
   RankedSymbol,
   removeFromWatchlist,
-  TastytradeWatchlist,
+  ScannerWatchlist,
   toggleWatchlist,
   WatchlistItem,
 } from "@/lib/api";
@@ -33,7 +33,7 @@ export default function Watchlist() {
 
   const wl = useSWR<WatchlistItem[]>("/api/watchlist", fetcher, POLL);
   const ranked = useSWR<RankedSymbol[]>("/api/watchlist/ranked", fetcher, POLL);
-  const ttLists = useSWR<TastytradeWatchlist[]>(showImport ? "/api/tastytrade-watchlists" : null, fetcher);
+  const scannerLists = useSWR<ScannerWatchlist[]>(showImport ? "/api/ibkr-scanner" : null, fetcher);
 
   const refresh = () => { mutate("/api/watchlist"); mutate("/api/watchlist/ranked"); };
 
@@ -73,15 +73,15 @@ export default function Watchlist() {
     try { await toggleWatchlist(s, enabled); refresh(); }
     catch { toast.error(`Could not update ${s}`); }
   };
-  const importList = async (l: TastytradeWatchlist) => {
-    try { await importWatchlist(l.symbols, `tt:${l.name}`); toast.success(`Imported ${l.symbols.length} symbols from ${l.name}`); refresh(); }
+  const importList = async (l: ScannerWatchlist) => {
+    try { await importWatchlist(l.symbols, `ibkr:${l.name}`); toast.success(`Imported ${l.symbols.length} symbols from ${l.name}`); refresh(); }
     catch { toast.error(`Could not import ${l.name}`); }
   };
 
   return (
     <div className="max-w-[1080px]">
       <PageHeader title="Watchlist">
-        {rows.length} symbols · seeded from tastytrade <b className="font-semibold text-foreground">High Options Volume</b>. The agent does the expensive chain work on the highest-IVR liquid names each cycle.
+        {rows.length} symbols · dynamically discovered via IBKR Market Scanner or custom added. The agent computes 1-year historical IV Rank & Percentile and analyzes the highest-IVR names each cycle.
       </PageHeader>
 
       <div className="mb-[18px] flex flex-wrap items-center gap-2.5">
@@ -94,7 +94,7 @@ export default function Watchlist() {
         />
         <Button onClick={add}><Plus className="size-4" /> Add</Button>
         <Button variant="secondary" onClick={() => setShowImport(!showImport)}>
-          <ListPlus className="size-4" /> Browse tastytrade lists
+          <ListPlus className="size-4" /> Scan IBKR Market
         </Button>
       </div>
 
@@ -136,23 +136,23 @@ export default function Watchlist() {
 
       {showImport && (
         <Card>
-          <CardHeader><CardTitle>tastytrade recommended lists</CardTitle></CardHeader>
+          <CardHeader><CardTitle>IBKR Market Scanner (High Options Volume)</CardTitle></CardHeader>
           <CardContent>
-            {!ttLists.data ? (
-              <Loading label="Fetching tastytrade lists…" />
-            ) : ttLists.error ? (
-              <ErrorNote msg="Could not fetch tastytrade lists (live-only endpoint)." />
+            {!scannerLists.data ? (
+              <Loading label="Fetching IBKR scanner results…" />
+            ) : scannerLists.error ? (
+              <ErrorNote msg="Could not fetch IBKR scanner results (gateway connection required)." />
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>List</TableHead>
+                    <TableHead>Scanner Pool</TableHead>
                     <TableHead className="text-right">Symbols</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ttLists.data.map((l) => (
+                  {scannerLists.data.map((l) => (
                     <TableRow key={l.name}>
                       <TableCell className="font-medium">{l.name}</TableCell>
                       <TableCell className={cn("text-right", num)}>{l.symbols.length}</TableCell>

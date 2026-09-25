@@ -1,55 +1,92 @@
 # TastyAgent
 
-An AI options-trading agent that trades **tastytrade's premium-selling methodology**. Deterministic
-tastytrade mechanics act as hard guardrails; an OpenRouter LLM provides an adaptive selection layer *within*
-those rails. It paper-trades through tastytrade's sandbox, manages winners and defends/rolls losers,
-and surfaces everything on a live dashboard with P/L vs. the S&P 500.
+An autonomous AI options-trading agent implementing **tastytrade's premium-selling methodology** executed directly via a local **Interactive Brokers (IBKR) Gateway / TWS** using [`ib_async`](https://github.com/ib-api-reloaded/ib_async). Deterministic tastytrade mechanics act as unyielding guardrails; an OpenRouter LLM (default: `deepseek/deepseek-v4.1-flash`) provides an adaptive selection and sizing layer *within* those rails.
 
-> ⚠️ **Educational project. Not financial advice.** Options trading involves substantial risk. Run it
-> in the sandbox. Only point it at real money once you fully understand it and accept the risk.
+The agent features native IBKR Market Scanner universe discovery, 1-year historical Implied Volatility (IV) Rank calculation with daily SQLite caching, spread-protective walk-the-book order execution, pre-attached 50% Take-Profit GTC limit orders, strict position isolation (so other portfolio positions are never affected), and a real-time Next.js dashboard.
+
+> ⚠️ **Educational project. Not financial advice.** Options trading involves substantial risk. Test thoroughly in paper trading. Only point it at real capital once you fully understand the mechanics and accept the risks.
 
 ---
 
-## How it works
+## How It Works (Detailed Implementation Breakdown)
 
 ```
-market context (IV rank / regime)
+IBKR Market Scanner (OPT_VOLUME_MOST_ACTIVE)
         │
         ▼
-generate candidates ─ strangles · naked puts · put/call credit spreads · iron condors
-        │             (real option chains + streamed greeks)
-        ▼
-HARD GUARDRAILS  ── IV rank · ~45 DTE · ~16Δ strikes · liquidity · earnings · BP caps
+1-Year Historical IV Rank & Percentile (OPTION_IMPLIED_VOLATILITY + SQLite cache)
         │
         ▼
-LLM selects & sizes (OpenRouter)  ── adaptive layer, within the rails, writes a plain-English rationale
+Option Chain Resolution & Greeks Streaming (reqSecDefOptParamsAsync + Tick 106)
         │
         ▼
-POST-LLM RE-VALIDATION  ── guardrails + sizing + portfolio risk recomputed (LLM can't bypass them)
+Generate Candidates ─ Strangles · Naked Puts · Put/Call Credit Spreads · Iron Condors
         │
         ▼
-execute  ── sandbox auto · live = one-click approval queue
+HARD GUARDRAILS ── IV Rank (≥30%) · ~45 DTE · ~16Δ Short Legs · Liquidity · Earnings · BP Caps
         │
         ▼
-manage every cycle  ── take profit (50% / ahead-of-pace schedule) · roll out at 21 DTE ·
-                       roll the untested side when tested · (optional hard stop)
+LLM Selects & Sizes (OpenRouter DeepSeek) ── Adaptive layer inside the rails + plain-English rationale
+        │
+        ▼
+POST-LLM RE-VALIDATION ── Guardrails + Sizing + Portfolio Risk rechecked (LLM cannot bypass)
+        │
+        ▼
+IBKR Execution (IBKRPlacer) ── Multi-leg BAG combos · Walk-the-book limit repricing · Pre-attached 50% TP
+        │
+        ▼
+Position Lifecycle & Isolation ── Strict orderRef tracking · 50% TP monitoring · 21 DTE rolls · Untested side rolls
 ```
 
-The **adaptive (LLM) layer is deliberately fenced in**: every trade it picks is re-validated against
-the deterministic guardrails, sizing, and portfolio-risk limits before anything is placed.
+### Phase-by-Phase Code Architecture
+
+1. **Universe Discovery via Market Scanner (`backend/tastyagent/ibkr/scanner.py`)**:
+   - Executes `reqScannerDataAsync(ScannerSubscription(instrument="STK", locationCode="STK.US.MAJOR", scanCode="OPT_VOLUME_MOST_ACTIVE"))`.
+   - Discovers top high-volume, liquid optionable tickers on the market dynamically, replacing static third-party watchlists.
+2. **1-Year Historical IV Metrics (`backend/tastyagent/ibkr/metrics.py`)**:
+   - Queries IBKR historical market data via `reqHistoricalDataAsync(contract, durationStr="1 Y", barSizeSetting="1 day", whatToShow="OPTION_IMPLIED_VOLATILITY")`.
+   - Computes:
+     - **IV Rank** = $\frac{\text{Current IV} - \text{Min IV}_{52w}}{\text{Max IV}_{52w} - \text{Min IV}_{52w}}$
+     - **IV Percentile** = $\frac{\sum \mathbf{1}(\text{IV}_t < \text{Current IV})}{N}$
+   - Caches calculated metrics into a local SQLite table (`iv_metrics_cache`) with a daily TTL `(symbol, cache_date)` to avoid redundant gateway requests.
+3. **Option Chain Resolution & Greeks Streaming (`backend/tastyagent/ibkr/marketdata.py`)**:
+   - Fetches underlying spot prices using real-time quotes with automatic fallback to historical daily closes (`reqHistoricalDataAsync`) for non-subscribed exchanges.
+   - Resolves active expiration dates and strike grids via `reqSecDefOptParamsAsync`.
+   - Discovers option contracts matching the ~45 DTE target and streams Greeks (Delta, Theta, Implied Volatility, Bid, Ask) via generic tick 106 (`reqMktData`).
+4. **Candidate Generation & Hard Guardrails (`backend/tastyagent/strategy/candidates.py`, `guardrails.py`)**:
+   - Builds candidate structures: Short Strangles, Naked Puts, Put/Call Credit Spreads, and Iron Condors.
+   - Enforces deterministic tastytrade rules:
+     - Expiration: 30–55 DTE (target 45 DTE).
+     - Delta: short legs targeted near 16Δ (max allowable delta cap).
+     - Liquidity: bid-ask spread width ratio $\le 10\%$ ($\le 50\%$ in sandbox).
+     - Minimum IV Rank: $\ge 30\%$.
+     - Earnings Blackout: eliminates underlyings announcing earnings within 7 days.
+5. **Adaptive LLM Selection (`backend/tastyagent/decision/llm.py`)**:
+   - Formats qualifying candidates and macro regime data into structured JSON.
+   - Prompts OpenRouter (default: `deepseek/deepseek-v4.1-flash`) to pick the best risk-adjusted setups and assign capital allocations with clear reasoning.
+6. **Post-LLM Re-Validation & Portfolio Sizing (`backend/tastyagent/strategy/sizing.py`, `backend/tastyagent/risk/limits.py`)**:
+   - Prevents prompt injection or hallucination: every trade chosen by the LLM is re-verified against guardrails, single-trade buying power caps (max 25%), total portfolio allocation (max 40%), daily loss limits, and consecutive loss halts.
+7. **Order Execution & Spread Protection (`backend/tastyagent/ibkr/orders.py`, `backend/tastyagent/ibkr/placer.py`)**:
+   - Constructs multi-leg IBKR `BAG` combo contracts (`ComboLeg`).
+   - Sells credit spreads/strangles using negative limit prices (`action="BUY"`, `lmtPrice = -credit_per_share`).
+   - Employs **walk-the-book** limit repricing starting at favorable mid-price, stepping by 1¢ every N seconds towards natural market price to prevent market-maker gouging.
+   - Uses **cancel-and-replace** rather than in-place order modification to eliminate IBKR Warning 105 errors.
+   - Auto-attaches a 50% Take-Profit GTC limit order (`action="SELL"`, `lmtPrice = -0.50 * credit_per_share`) upon fill.
+8. **Position Lifecycle Management & Strict Isolation (`backend/tastyagent/execution/exit_manager.py`, `backend/tastyagent/portfolio/ledger.py`)**:
+   - **Isolation**: Tags all orders and positions with unique identifiers: `orderRef="TastyAgent_{trade_id}"`. The agent never touches or interferes with manual positions or trades from other strategies on the account.
+   - **Audit**: Continuously audits open TastyAgent positions; if any position lacks an active take-profit order, an alert is surfaced immediately.
+   - **Defense**: Monitors positions at 21 DTE for standard rolling, or rolls the untested side when a short strike is breached.
 
 ---
 
 ## Prerequisites
 
 - **Python 3.11+** and **Node.js 20+**
-- A **tastytrade account** with API access, and:
-  - a **sandbox (cert) OAuth grant** with `read trade` scope (for paper trading)
-  - a **production read-only OAuth grant** (`read` scope only) — used *only* to fetch IV rank, which
-    the sandbox doesn't serve. Read-only means it physically cannot place a live order.
-- An **OpenRouter API key** (for the adaptive selection layer, default model: `deepseek/deepseek-v4.1-flash`)
-
-> Paths below use Windows (`​.venv\Scripts\…`). On macOS/Linux use `.venv/bin/…`.
+- **Interactive Brokers Gateway or TWS** running locally or on your local network:
+  - API enabled in Gateway/TWS settings (*Settings → API → Settings → Enable ActiveX and Socket Clients*).
+  - Socket Port configured (default: `4002` for Paper, `4001` for Live).
+  - Trusted IP: ensure `127.0.0.1` (or your client host IP) is added to trusted IP addresses.
+- **OpenRouter API Key** (for adaptive trade selection; default model: `deepseek/deepseek-v4.1-flash`).
 
 ---
 
@@ -59,172 +96,112 @@ the deterministic guardrails, sizing, and portfolio-risk limits before anything 
 
 ```bash
 cd backend
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"     # installs the package + test deps
-copy .env.example .env                                # then fill it in (next step)
+python3 -m venv .venv
+source .venv/bin/activate            # On Windows: .venv\Scripts\activate
+pip install -e ".[dev]"              # Installs dependencies including ib_async
+cp .env.example .env                 # Configure your credentials
 ```
 
-### 2. Credentials (`backend/.env`)
+### 2. Configuration (`backend/.env`)
 
-`.env` is gitignored — never commit it. Fill in:
+Edit `backend/.env` (this file is gitignored — never commit real secrets):
 
-| Variable | What it is |
-|---|---|
-| `TASTYAGENT_MODE` | `sandbox` (default), `live_approval`, or `live_auto` |
-| `TASTYTRADE_USERNAME` / `TASTYTRADE_PASSWORD` | your sandbox user (used once to provision/fund the paper account) |
-| `TASTYTRADE_ACCOUNT` | sandbox account number (set after provisioning) |
-| `TASTYTRADE_CLIENT_SECRET` / `TASTYTRADE_OAUTH_REFRESH_TOKEN` | sandbox `read trade` OAuth grant |
-| `TASTYTRADE_PROD_CLIENT_SECRET` / `TASTYTRADE_PROD_OAUTH_REFRESH_TOKEN` | **production read-only** grant (IV rank) |
-| `OPENROUTER_API_KEY` | OpenRouter API key |
-| `OPENROUTER_MODEL` | defaults to `deepseek/deepseek-v4.1-flash` |
-| `OPENROUTER_BASE_URL` | optional, defaults to `https://openrouter.ai/api/v1` |
-| `TASTYAGENT_WORKING_CAPITAL` | capital the agent sizes against (default **$10,000**) |
+| Variable | Description | Default |
+|---|---|---|
+| `TASTYAGENT_MODE` | `sandbox` (paper auto-place), `live_approval`, `live_auto` | `sandbox` |
+| `TASTYAGENT_WORKING_CAPITAL` | Simulated capital base to size trades against ($) | `10000.0` |
+| `IBKR_HOST` | Host IP for trading IBKR Gateway / TWS | `127.0.0.1` |
+| `IBKR_PORT` | Socket port for trading gateway (`4002` paper, `4001` live) | `4002` |
+| `IBKR_CLIENT_ID` | Unique client ID for trading connection | `45` |
+| `IBKR_ACCOUNT` | IBKR Account ID (e.g. `DU123456` or `U1234567`) | *(optional, auto-detects)* |
+| `IBKR_DATA_HOST` | Market data gateway host (if using dual gateway) | `127.0.0.1` |
+| `IBKR_DATA_PORT` | Market data gateway port (e.g. `4001` live data) | `4001` |
+| `IBKR_DATA_CLIENT_ID` | Dedicated client ID for market data streaming | `46` |
+| `IBKR_SCAN_CODE` | IBKR Market Scanner code | `OPT_VOLUME_MOST_ACTIVE` |
+| `IBKR_SCAN_ROWS` | Number of top symbols to fetch from scanner | `25` |
+| `IBKR_WALK_STEP` | Repricing increment for walk-the-book ($) | `0.01` |
+| `IBKR_WALK_INTERVAL` | Seconds to wait between walk-the-book price adjustments | `5` |
+| `IBKR_ATTACH_TP` | Whether to automatically submit 50% Take Profit order | `true` |
+| `IBKR_TP_PCT` | Take profit target percentage | `0.50` |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key | *(required)* |
+| `OPENROUTER_MODEL` | LLM model for trade selection | `deepseek/deepseek-v4.1-flash` |
 
-Create OAuth grants at `my.tastytrade.com → Manage → My Profile → API → OAuth Applications`
-(2FA must be enabled for the `read`/`trade` scopes). The sandbox grant is issued in the cert
-environment; the prod read-only grant is a separate app with `read` scope only.
-
-### 3. Provision & fund the sandbox account
-
-The sandbox wipes balances every 24h, so re-run this whenever you start a session:
-
-```bash
-cd backend
-.venv\Scripts\python scripts\provision_sandbox.py     # creates (if needed) + funds the paper account to $1M
-```
-
-### 4. Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-# optional: set NEXT_PUBLIC_API_BASE if the API isn't on http://localhost:8000
 ```
 
 ---
 
-## Running it
+## Running the Application
 
-Two terminals:
+Open two terminal windows:
 
 ```bash
-# Terminal 1 — API
+# Terminal 1 — FastAPI Backend
 cd backend
-.venv\Scripts\python -m uvicorn tastyagent.api.app:app --port 8000
+source .venv/bin/activate
+uvicorn tastyagent.api.app:app --port 8000
 
-# Terminal 2 — dashboard
+# Terminal 2 — Next.js Dashboard
 cd frontend
-npm run dev            # http://localhost:3000
+npm run dev                          # Open http://localhost:3000
 ```
 
-From the **dashboard** you can:
-- **Run cycle** — run one full decision cycle now (gather context → generate candidates → LLM
-  selects → re-validate → place)
-- **Auto: ON/OFF** — start/stop the market-hours scheduler loop
-- **Mode** switch and **Kill switch** (halts all new entries instantly)
-- Edit the **watchlist** (the agent's universe) — add/remove/disable tickers, **browse and import
-  tastytrade's recommended lists** (e.g. "High Options Volume"), and see live **IV rank** per symbol
-- Watch open positions (with rationale + **probability of profit**), win/loss lists, P/L cards, the
-  pending-approval queue (live mode), and the **equity curve vs. S&P 500**
-
-Or drive a single cycle from the CLI:
-
-```bash
-cd backend
-.venv\Scripts\python scripts\run_cycle.py
-```
+### Dashboard Features
+- **Run Cycle**: Triggers an on-demand decision cycle.
+- **Auto Mode**: Enables market-hours autonomous scheduling.
+- **Kill Switch**: Instantly freezes all new order entries.
+- **IBKR Scanner Watchlist**: View live high-options-volume symbols discovered directly by IBKR Market Scanner, alongside calculated IV Rank and Percentiles.
+- **Active Positions & Queue**: Inspect open combo positions, attached Take-Profit status, Greeks, and pending orders awaiting manual approval (in `live_approval` mode).
+- **Equity Curve & Benchmark**: Real-time performance tracking compared against the S&P 500 (SPY).
 
 ---
 
-## Trading modes & safety
-
-| Mode | Behavior |
-|---|---|
-| `sandbox` | Paper trading on tastytrade cert. Places automatically. The liquidity-width guardrail is relaxed (cert quotes are delayed/wide). |
-| `live_approval` | Real account. **Every order waits in the dashboard approval queue** until you click Approve. |
-| `live_auto` | Real account, fully autonomous (opt-in). |
-
-Safety rails (all in `backend/tastyagent/config.py`): per-trade & total buying-power caps, max
-positions, per-symbol concentration, daily-loss halt, consecutive-loss halt, and a hard **kill
-switch**. The LLM cannot bypass any of them — they're re-checked after it selects.
-
----
-
-## The methodology (encoded as guardrails)
-
-- **Universe:** on first run the watchlist is **seeded from tastytrade's "High Options Volume" list**
-  (~194 liquid optionable names, fetched live). You then edit it freely or import other recommended
-  lists. Each cycle the agent batches one IV-rank call across the whole universe and does the
-  expensive chain/greeks work only on the **top-N highest-IVR liquid names** (`universe_top_n`), so a
-  big watchlist stays fast.
-- **Entry:** sell premium when **IV rank** is elevated; ~**45 DTE**; ~**16-delta** short strikes;
-  liquidity + earnings filters; small buying-power allocation per trade.
-- **Strategies:** short strangle, naked put, put/call credit spreads, iron condor (the LLM chooses by
-  IV rank, account size, and buying power; defined-risk preferred when BP is constrained).
-- **Manage winners:** take profit at 50% of max, **or earlier on an "ahead-of-pace" schedule**
-  (per-strategy days-held-to-profit table) — close a winner the moment it reaches a milestone faster
-  than average.
-- **Defend losers:** **roll out** to the next cycle at 21 DTE; **roll the untested side** in for a
-  credit when a short leg gets tested. Hard stop-loss is **off by default** (tastytrade manages, not
-  stops).
-- **Probability of profit** is shown per trade (delta-based estimate; a 16Δ strangle ≈ ~68%).
-
----
-
-## Tests
-
-```bash
-cd backend
-.venv\Scripts\python -m pytest -q       # 90 deterministic tests, no network
-```
-
-The safety-critical core (guardrails, sizing, exits/defense, risk limits, ledger, executor,
-candidate builders, API) is fully unit-tested.
-
-## Helper scripts (`backend/scripts/`)
+## CLI Diagnostic Tools (`backend/scripts/`)
 
 | Script | Purpose |
 |---|---|
-| `provision_sandbox.py` | create + fund the sandbox paper account (idempotent; re-run after the daily reset) |
-| `check_sandbox.py` | verify sandbox OAuth login, list accounts/balances/positions |
-| `check_metrics.py` | verify IV rank via the production read-only grant |
-| `check_candidates.py` | live market context + candidate generation for a small watchlist |
-| `check_llm.py` | verify OpenRouter LLM structured selection |
-| `run_cycle.py` | run one full decision cycle against the sandbox |
-| `reset.py` | clean slate — cancel all live sandbox orders + wipe the local ledger |
+| `check_ibkr.py` | Tests connectivity to IBKR trading and data gateways, verifies account balances, positions, and order isolation. |
+| `check_scanner.py` | Runs IBKR Market Scanner (`OPT_VOLUME_MOST_ACTIVE`) and lists active symbols. |
+| `check_metrics.py` | Computes 1-year historical IV Rank & Percentile for test symbols and verifies SQLite cache performance. |
+| `check_candidates.py` | Fetches live IBKR option chains and Greeks, generating candidate spreads/strangles with guardrail diagnostics. |
+| `check_llm.py` | Verifies OpenRouter connectivity and tests structured JSON selection with DeepSeek. |
+| `run_cycle.py` | Executes one full autonomous cycle against IBKR from the command line. |
+| `reset.py` | Safely cancels all TastyAgent working orders (without touching external orders) and resets the local DB. |
 
 ---
 
-## Project layout
+## Testing
 
+The codebase includes an extensive automated test suite with full mocks for IBKR and LLM interactions:
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest -q
 ```
-backend/tastyagent/
-  config.py · settings.py · models.py          # config, env, domain types (+ PoP)
-  strategy/   guardrails · sizing · exits · profit_schedule · candidates
-  risk/       limits                           # portfolio safety rails
-  tt/         client · ratelimit · marketdata · metrics · orders   # tastytrade API
-  decision/   context · llm · orchestrator     # market context + OpenRouter LLM + pipeline
-  execution/  executor · sandbox_placer · exit_manager · tracker
-  portfolio/  ledger · pnl · benchmark         # source-of-truth ledger, P/L, S&P
-  db/         models · session                 # SQLite via SQLAlchemy
-  runner.py · scheduler.py · api/              # the cycle tick, loop, FastAPI app
-frontend/                                       # Next.js dashboard
-```
+All 118 unit tests validate guardrails, sizing, IBKR order generation, combo pricing mechanics, walk-the-book repricing, take-profit attachment, and risk limits.
 
 ---
 
-## Known limitations (honest)
+## Project Structure
 
-- **Sandbox fills are unreliable** — cert limit orders often sit `working` and rarely fill to `open`,
-  so realized P/L and live exit/roll *execution* are hard to demo there (the logic is unit-tested and
-  runs in production). Quotes are 15-min delayed.
-- **IV rank is production-only** — sandbox doesn't serve `/market-metrics`, hence the separate
-  read-only prod grant.
-- **No backtesting (by design)** — TastyAgent trades tastytrade's already-researched strategies
-  rather than inventing its own, so **sandbox paper trading is the validation method**.
-- **Working capital is simulated** — the sandbox seeds ~$1M with no withdrawal endpoint, so the agent
-  sizes against `TASTYAGENT_WORKING_CAPITAL` ($10k default), not the broker's balance. At $10k the
-  agent favors small defined-risk spreads (SPY strangles need ~$15k BP, so they're correctly out of
-  reach).
-- **PoP is a delta-based estimate**, not a full pricing-model probability.
+```
+backend/
+├── pyproject.toml                         # Package configuration & dependencies (ib_async, etc.)
+├── .env.example                           # Template for configuration parameters
+├── scripts/                               # Diagnostic and CLI runners (check_ibkr, run_cycle, etc.)
+├── tastyagent/
+│   ├── api/                               # FastAPI endpoints, WebSocket feeds, and runtime
+│   ├── db/                                # SQLite persistence (SQLAlchemy models and session)
+│   ├── decision/                          # Market context, OpenRouter LLM client, and orchestrator
+│   ├── execution/                         # Order placement, exit manager, and trade tracker
+│   ├── ibkr/                              # IBKR client, market data, scanner, metrics, orders, placer
+│   ├── portfolio/                         # Ledger, P/L calculation, and S&P 500 benchmark
+│   ├── risk/                              # Portfolio safety limits and capital guardrails
+│   └── strategy/                          # Delta/DTE guardrails, candidate builders, and sizing
+frontend/                                  # Next.js 14 dashboard with TailwindCSS and shadcn/ui
 ```

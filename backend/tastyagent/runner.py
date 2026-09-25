@@ -120,12 +120,27 @@ async def _build_roll_candidate(client: IBKRClient, trade: Trade, roll_kind: Rol
             return None
 
         exp_str = exp_date.strftime("%Y%m%d")
-        contracts = [Option(sym, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
-        await client.data_ib.qualifyContractsAsync(*contracts)
-        snaps = await snapshot_options(client.data_ib, contracts, timeout=8.0)
+        pattern = Option(sym, exp_str, right="", exchange="SMART")
+        try:
+            cds = await client.data_ib.reqContractDetailsAsync(pattern)
+            contracts = [cd.contract for cd in cds]
+        except Exception:
+            contracts = []
 
-        puts = [c for c in contracts if c.right == "P"]
-        calls = [c for c in contracts if c.right == "C"]
+        if not contracts:
+            contracts = [Option(sym, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
+            await client.data_ib.qualifyContractsAsync(*contracts)
+            contracts = [c for c in contracts if c.conId > 0]
+
+        if not contracts:
+            return None
+
+        lo_rel, hi_rel = underlying * 0.75, underlying * 1.25
+        relevant_contracts = [c for c in contracts if lo_rel <= c.strike <= hi_rel] or contracts
+        snaps = await snapshot_options(client.data_ib, relevant_contracts, timeout=8.0)
+
+        puts = [c for c in relevant_contracts if c.right == "P"]
+        calls = [c for c in relevant_contracts if c.right == "C"]
         p = select_by_delta(puts, snaps, params.target_short_delta)
         c = select_by_delta(calls, snaps, params.target_short_delta)
         if not p or not c:

@@ -1,49 +1,60 @@
-"""Verify IV rank via the PRODUCTION read-only grant.
+"""Verify 1-year historical IV Rank & Percentile computation with SQLite caching via IBKR.
 
-Run this once you've added TASTYTRADE_PROD_CLIENT_SECRET and
-TASTYTRADE_PROD_OAUTH_REFRESH_TOKEN to backend/.env (a read-scope prod grant).
-
-Run:  ./.venv/Scripts/python.exe scripts/check_metrics.py
+Run:
+    python scripts/check_metrics.py
 """
 
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import time
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
-from tastyagent.tt.client import metrics_session_from_env  # noqa: E402
-from tastyagent.tt.metrics import MarketMetricsUnavailable, get_iv_metrics  # noqa: E402
+from tastyagent.ibkr.client import IBKRClient  # noqa: E402
+from tastyagent.ibkr.metrics import get_iv_metrics  # noqa: E402
+from tastyagent.settings import load_settings  # noqa: E402
 
-SYMBOLS = ["SPY", "QQQ", "AAPL", "TSLA"]
+SYMBOLS = ["SPY", "QQQ", "AAPL", "NVDA"]
 
 
 async def main() -> None:
-    session = metrics_session_from_env()
-    if session is None:
-        raise SystemExit(
-            "No prod read-only credentials in .env "
-            "(TASTYTRADE_PROD_CLIENT_SECRET / TASTYTRADE_PROD_OAUTH_REFRESH_TOKEN)."
-        )
+    settings = load_settings()
+    client = IBKRClient(settings)
+    await client.connect()
 
-    print("Production read-only session established. Fetching market metrics...")
     try:
-        metrics = await get_iv_metrics(session, SYMBOLS)
-    except MarketMetricsUnavailable as e:
-        raise SystemExit(f"Still unavailable: {e}")
+        print(f"Fetching 1-year historical IV and calculating IV Rank for {SYMBOLS}...")
+        t0 = time.time()
+        metrics = await get_iv_metrics(client.data_ib, SYMBOLS)
+        elapsed = time.time() - t0
+        print(f"Initial fetch completed in {elapsed:.2f}s\n")
 
-    print(f"\n{'symbol':<8}{'IV rank':>10}{'IV %ile':>10}{'liq':>6}  next earnings")
-    for sym in SYMBOLS:
-        m = metrics.get(sym)
-        if not m:
-            print(f"{sym:<8}{'(no data)':>10}")
-            continue
-        ivr = f"{m.iv_rank:.1%}" if m.iv_rank is not None else "n/a"
-        ivp = f"{m.iv_percentile:.1%}" if m.iv_percentile is not None else "n/a"
-        print(f"{sym:<8}{ivr:>10}{ivp:>10}{str(m.liquidity_rating):>6}  {m.next_earnings}")
+        print(f"{'symbol':<8}{'IV Rank':>10}{'IV %ile':>10}{'Current IV':>12}{'52w Range (Min-Max)':>24}")
+        print("-" * 66)
+        for sym in SYMBOLS:
+            m = metrics.get(sym)
+            if not m or m.iv_rank is None:
+                print(f"{sym:<8}{'(no data)':>10}")
+                continue
+            ivr_str = f"{m.iv_rank:.1%}"
+            ivp_str = f"{m.iv_percentile:.1%}" if m.iv_percentile is not None else "N/A"
+            cur_iv = f"{m.current_iv:.1%}" if m.current_iv is not None else "N/A"
+            rng = f"{m.min_iv:.1%} - {m.max_iv:.1%}" if m.min_iv is not None and m.max_iv is not None else "N/A"
+            print(f"{sym:<8}{ivr_str:>10}{ivp_str:>10}{cur_iv:>12}{rng:>24}")
+
+        # Test cache hit speed
+        print("\nTesting daily SQLite cache hit...")
+        t1 = time.time()
+        cached_metrics = await get_iv_metrics(client.data_ib, SYMBOLS)
+        cached_elapsed = time.time() - t1
+        print(f"Cached retrieval completed in {cached_elapsed * 1000:.2f} ms (instant!)")
+
+    finally:
+        await client.disconnect()
 
 
 if __name__ == "__main__":
