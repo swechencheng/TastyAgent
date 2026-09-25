@@ -368,7 +368,7 @@ def create_app(
             rt.risk = _apply_updates(rt.risk, {k: v for k, v in req.risk.items() if k != "kill_switch"})
         return _settings_out(rt)
 
-    # --- activity (recent decision cycles + Claude's rationale) ---
+    # --- activity (recent decision cycles + LLM rationale) ---
     PLACED_STATUSES = (
         TradeStatus.WORKING,
         TradeStatus.OPEN,

@@ -59,8 +59,17 @@ class Settings(BaseSettings):
     tastytrade_username: str = Field(default="", alias="TASTYTRADE_USERNAME")
     tastytrade_password: str = Field(default="", alias="TASTYTRADE_PASSWORD")
     tastytrade_account: str = Field(default="", alias="TASTYTRADE_ACCOUNT")
-    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    anthropic_model: str = Field(default="claude-opus-4-8", alias="ANTHROPIC_MODEL")
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(
+        default="deepseek/deepseek-v4.1-flash", alias="OPENROUTER_MODEL"
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
+    )
+    openrouter_site_url: str = Field(
+        default="https://github.com/swechencheng/TastyAgent", alias="OPENROUTER_SITE_URL"
+    )
+    openrouter_app_name: str = Field(default="TastyAgent", alias="OPENROUTER_APP_NAME")
     # Capital the agent sizes against. The sandbox account seeds at ~$1M with no
     # withdrawal endpoint, so the agent simulates this working capital instead.
     working_capital: float = Field(default=10_000.0, alias="TASTYAGENT_WORKING_CAPITAL")

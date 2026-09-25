@@ -5,7 +5,7 @@ description = "AI options-trading agent grounded in TastyTrade mechanics"
 requires-python = ">=3.11"
 dependencies = [
     "tastytrade>=9.0",      # tastyware SDK: orders, sandbox, backtesting
-    "anthropic>=0.40",      # Claude LLM adaptive layer
+    "openai>=1.0",         # OpenRouter / OpenAI-compatible LLM adaptive layer
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "sqlalchemy>=2.0",

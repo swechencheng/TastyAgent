@@ -177,7 +177,7 @@ export default function Activity() {
   return (
     <div className="max-w-[1080px]">
       <PageHeader title="Activity">
-        Every decision cycle — Claude&apos;s reasoning by ticker and the exact trades planned, placed, rejected, and managed.
+        Every decision cycle — LLM reasoning by ticker and the exact trades planned, placed, rejected, and managed.
       </PageHeader>
 
       {data.length === 0 ? (

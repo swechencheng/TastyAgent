@@ -1,7 +1,7 @@
 # TastyAgent
 
 An AI options-trading agent that trades **tastytrade's premium-selling methodology**. Deterministic
-tastytrade mechanics act as hard guardrails; Claude provides an adaptive selection layer *within*
+tastytrade mechanics act as hard guardrails; an OpenRouter LLM provides an adaptive selection layer *within*
 those rails. It paper-trades through tastytrade's sandbox, manages winners and defends/rolls losers,
 and surfaces everything on a live dashboard with P/L vs. the S&P 500.
 
@@ -22,7 +22,7 @@ generate candidates ─ strangles · naked puts · put/call credit spreads · ir
 HARD GUARDRAILS  ── IV rank · ~45 DTE · ~16Δ strikes · liquidity · earnings · BP caps
         │
         ▼
-CLAUDE selects & sizes  ── adaptive layer, within the rails, writes a plain-English rationale
+LLM selects & sizes (OpenRouter)  ── adaptive layer, within the rails, writes a plain-English rationale
         │
         ▼
 POST-LLM RE-VALIDATION  ── guardrails + sizing + portfolio risk recomputed (LLM can't bypass them)
@@ -47,7 +47,7 @@ the deterministic guardrails, sizing, and portfolio-risk limits before anything 
   - a **sandbox (cert) OAuth grant** with `read trade` scope (for paper trading)
   - a **production read-only OAuth grant** (`read` scope only) — used *only* to fetch IV rank, which
     the sandbox doesn't serve. Read-only means it physically cannot place a live order.
-- An **Anthropic API key** (for the Claude selection layer)
+- An **OpenRouter API key** (for the adaptive selection layer, default model: `deepseek/deepseek-v4.1-flash`)
 
 > Paths below use Windows (`​.venv\Scripts\…`). On macOS/Linux use `.venv/bin/…`.
 
@@ -75,8 +75,9 @@ copy .env.example .env                                # then fill it in (next st
 | `TASTYTRADE_ACCOUNT` | sandbox account number (set after provisioning) |
 | `TASTYTRADE_CLIENT_SECRET` / `TASTYTRADE_OAUTH_REFRESH_TOKEN` | sandbox `read trade` OAuth grant |
 | `TASTYTRADE_PROD_CLIENT_SECRET` / `TASTYTRADE_PROD_OAUTH_REFRESH_TOKEN` | **production read-only** grant (IV rank) |
-| `ANTHROPIC_API_KEY` | Claude API key |
-| `ANTHROPIC_MODEL` | defaults to `claude-opus-4-8` |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
+| `OPENROUTER_MODEL` | defaults to `deepseek/deepseek-v4.1-flash` |
+| `OPENROUTER_BASE_URL` | optional, defaults to `https://openrouter.ai/api/v1` |
 | `TASTYAGENT_WORKING_CAPITAL` | capital the agent sizes against (default **$10,000**) |
 
 Create OAuth grants at `my.tastytrade.com → Manage → My Profile → API → OAuth Applications`
@@ -117,7 +118,7 @@ npm run dev            # http://localhost:3000
 ```
 
 From the **dashboard** you can:
-- **Run cycle** — run one full decision cycle now (gather context → generate candidates → Claude
+- **Run cycle** — run one full decision cycle now (gather context → generate candidates → LLM
   selects → re-validate → place)
 - **Auto: ON/OFF** — start/stop the market-hours scheduler loop
 - **Mode** switch and **Kill switch** (halts all new entries instantly)
@@ -188,7 +189,7 @@ candidate builders, API) is fully unit-tested.
 | `check_sandbox.py` | verify sandbox OAuth login, list accounts/balances/positions |
 | `check_metrics.py` | verify IV rank via the production read-only grant |
 | `check_candidates.py` | live market context + candidate generation for a small watchlist |
-| `check_llm.py` | verify Claude structured selection + prompt caching |
+| `check_llm.py` | verify OpenRouter LLM structured selection |
 | `run_cycle.py` | run one full decision cycle against the sandbox |
 | `reset.py` | clean slate — cancel all live sandbox orders + wipe the local ledger |
 
@@ -202,7 +203,7 @@ backend/tastyagent/
   strategy/   guardrails · sizing · exits · profit_schedule · candidates
   risk/       limits                           # portfolio safety rails
   tt/         client · ratelimit · marketdata · metrics · orders   # tastytrade API
-  decision/   context · llm · orchestrator     # market context + Claude + pipeline
+  decision/   context · llm · orchestrator     # market context + OpenRouter LLM + pipeline
   execution/  executor · sandbox_placer · exit_manager · tracker
   portfolio/  ledger · pnl · benchmark         # source-of-truth ledger, P/L, S&P
   db/         models · session                 # SQLite via SQLAlchemy

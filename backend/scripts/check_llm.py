@@ -1,8 +1,7 @@
-"""Verify the adaptive LLM layer: structured selection + prompt caching.
+"""Verify the adaptive LLM layer: structured selection via OpenRouter.
 
-Builds synthetic guardrail-passing candidates and asks Claude to choose. Runs the
-selection twice with a shared client so the second call should hit the cached system
-prompt (cache_read_input_tokens > 0).
+Builds synthetic guardrail-passing candidates and asks OpenRouter LLM to choose.
+Default model is deepseek/deepseek-v4.1-flash, or whatever is specified in OPENROUTER_MODEL.
 
 Run:  ./.venv/Scripts/python.exe scripts/check_llm.py
 """
@@ -11,21 +10,18 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
-from anthropic import AsyncAnthropic  # noqa: E402
-
-from tastyagent.decision.llm import (  # noqa: E402
-    SYSTEM_PROMPT,
-    LLMDecision,
-    build_user_message,
+from tastyagent.decision.llm import (
+    DEFAULT_MODEL,
     select_trades,
 )
-from tastyagent.models import (  # noqa: E402
+from tastyagent.models import (
     Action,
     CandidateTrade,
     Leg,
@@ -77,35 +73,26 @@ REGIME = {"vix": 17.5, "trend": "range-bound", "note": "moderate IV across indic
 
 
 async def main() -> None:
-    client = AsyncAnthropic()
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    model = os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+    print(f"Connecting to OpenRouter with model: {model}")
 
-    # Direct call to inspect usage (caching) + parsed output.
-    user_text, id_map = build_user_message(CANDIDATES, PORTFOLIO, REGIME)
-    for i in (1, 2):
-        resp = await client.messages.parse(
-            model="claude-opus-4-8",
-            max_tokens=16000,
-            thinking={"type": "adaptive"},
-            system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": user_text}],
-            output_format=LLMDecision,
-        )
-        u = resp.usage
-        print(f"--- call {i}: cache_write={u.cache_creation_input_tokens} "
-              f"cache_read={u.cache_read_input_tokens} input={u.input_tokens} "
-              f"output={u.output_tokens}")
+    if not api_key:
+        print("WARNING: OPENROUTER_API_KEY is not set in environment or backend/.env.")
+        print("Set OPENROUTER_API_KEY to test actual live API inference.")
+        return
 
-    decision: LLMDecision = resp.parsed_output
+    decision, id_map = await select_trades(CANDIDATES, PORTFOLIO, REGIME)
+
     print(f"\nCommentary: {decision.commentary}\n")
     print(f"Selections ({len(decision.selections)}):")
     for s in decision.selections:
-        c = id_map[s.candidate_id]
-        print(f"  - {s.candidate_id}: {s.contracts}x  (IVR {c.iv_rank:.0%})")
+        c = id_map.get(s.candidate_id)
+        ivr_str = f"{c.iv_rank:.0%}" if c else "?"
+        print(f"  - {s.candidate_id}: {s.contracts}x  (IVR {ivr_str})")
         print(f"      {s.rationale}")
 
-    # Confirm the wrapper also works and filters hallucinations.
-    d2, _ = await select_trades(CANDIDATES, PORTFOLIO, REGIME, client=client)
-    print(f"\nWrapper select_trades returned {len(d2.selections)} valid selection(s).")
+    print(f"\nSuccessfully returned {len(decision.selections)} valid selection(s).")
 
 
 if __name__ == "__main__":

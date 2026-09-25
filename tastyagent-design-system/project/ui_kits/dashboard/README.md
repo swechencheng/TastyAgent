@@ -20,7 +20,7 @@ and mirrors the real API shapes (see brief §7).
   positions snippet, recent activity.
 - **Positions:** Open/Closed segmented tabs, expandable rationale rows, win/loss badges.
 - **Watchlist:** IV-rank heat bars, add ticker, enable toggles, remove, tastytrade import panel.
-- **Activity:** expandable decision-log feed with Claude's commentary + universe chips.
+- **Activity:** expandable decision-log feed with LLM commentary + universe chips.
 - **Settings:** Agent / Strategy / Management / Risk groups with live derived effects, per-group
   save + "unsaved changes" state.
 - **Toasts** on every mutating action.

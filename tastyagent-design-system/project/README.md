@@ -2,7 +2,7 @@
 
 A design system for **TastyAgent**, an AI options-trading agent that trades tastytrade's
 premium-selling methodology. Deterministic tastytrade mechanics act as **hard guardrails**;
-Claude provides an **adaptive selection layer within those rails**. It paper-trades through
+an OpenRouter LLM provides an **adaptive selection layer within those rails**. It paper-trades through
 tastytrade's sandbox, manages winners and defends/rolls losers, and surfaces everything on a
 live dashboard with P/L vs. the S&P 500.
 
@@ -52,7 +52,7 @@ person, never hypey.
 
 - **Voice & person:** speaks **to the operator** as "you" / imperative ("Run cycle", "Add
   ticker", "Approve"). Refers to the system as "the agent" or "TastyAgent" (third person), and
-  attributes reasoning to **"Claude"** ("Claude's commentary", "Claude selects & sizes").
+  attributes reasoning to **"LLM"** ("LLM commentary", "LLM selects & sizes").
 - **Tone:** factual, confident, understated. It explains the *why* in one plain sentence —
   e.g. *"IV rank 82 — elevated. 16Δ short strikes, liquid chain, no earnings in window. Sized
   to 4% BP."* No exclamation marks, no persuasion, no "🚀 to the moon."

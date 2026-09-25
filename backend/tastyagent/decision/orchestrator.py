@@ -2,7 +2,7 @@
 
 Pipeline (one cycle):
   1. pre-guardrail filter   — drop candidates that fail hard entry rails
-  2. LLM selection          — Claude picks/sizes among guardrail-passing candidates
+  2. LLM selection          — OpenRouter LLM picks/sizes among guardrail-passing candidates
   3. post-LLM re-validation  — re-run guardrails + sizing + portfolio risk on each
                                pick (defense in depth: the LLM can never bypass the
                                rails, and sizing/risk are recomputed against running

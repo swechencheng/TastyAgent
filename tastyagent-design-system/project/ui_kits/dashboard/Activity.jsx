@@ -45,7 +45,7 @@ function Activity({ data }) {
   return (
     <div className="ta-screen">
       <h1 className="ta-page-title">Activity</h1>
-      <p className="ta-page-sub">Every decision cycle — Claude's commentary and the exact trades planned, placed, rejected, and managed.</p>
+      <p className="ta-page-sub">Every decision cycle — LLM commentary and the exact trades planned, placed, rejected, and managed.</p>
 
       <div className="ta-feed">
         {data.activity.map((a) => (

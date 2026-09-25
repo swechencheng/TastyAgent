@@ -1,6 +1,6 @@
 # TastyAgent — UI Redesign Brief
 
-> Hand this whole document to a design tool / Claude to generate the new UI. It is
+> Hand this whole document to a design tool / LLM to generate the new UI. It is
 > self-contained: it covers the product, brand, information architecture, every screen,
 > every data field (mapped to the real API), the new settings surface, and the
 > implementation constraints.
@@ -10,7 +10,7 @@
 ## 1. Product context
 
 **TastyAgent** is an AI options-trading agent that trades tastytrade's premium-selling
-methodology. Deterministic tastytrade mechanics are hard guardrails; Claude is an adaptive
+methodology. Deterministic tastytrade mechanics are hard guardrails; an OpenRouter LLM is an adaptive
 selection layer *within* those rails. It paper-trades through tastytrade's sandbox and
 (optionally) trades live with one-click approval.
 
@@ -154,7 +154,7 @@ wraps; tables become horizontally scrollable cards.
   count) with **Import all** per list.
 
 ### 5.4 Activity / Decision log
-- Reverse-chronological feed of cycles. Each entry: timestamp, mode, **Claude's commentary**
+- Reverse-chronological feed of cycles. Each entry: timestamp, mode, **LLM commentary**
   (the "why"), counts (considered / planned / placed / rejected / exits-rolled), and the
   universe analyzed (top-N tickers). Expand to see the trades placed/rejected with reasons.
   *(Backend: needs a decisions/activity endpoint — see §7.)*

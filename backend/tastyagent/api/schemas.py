@@ -182,7 +182,7 @@ class ActivityTrade(BaseModel):
 
 
 class ReasoningItem(BaseModel):
-    """A per-ticker bullet of Claude's reasoning for a cycle."""
+    """A per-ticker bullet of LLM reasoning for a cycle."""
 
     symbol: str
     text: str

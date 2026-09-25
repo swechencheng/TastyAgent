@@ -1,16 +1,14 @@
-"""Adaptive LLM layer: Claude selects among guardrail-passing candidates.
+"""Adaptive LLM layer: OpenRouter LLM selects among guardrail-passing candidates.
 
 The agent's hard guardrails (``strategy/guardrails.py``, ``risk/limits.py``) decide
 what is *permissible*. This module is the *adaptive* layer: given only candidates
-that already passed those rails, Claude chooses which to actually open, sizes them,
+that already passed those rails, the LLM chooses which to actually open, sizes them,
 and writes a plain-English rationale grounded in TastyTrade mechanics.
 
 Design notes:
-- The TastyTrade-mechanics system prompt is **static** (no dates/IDs/volatile data)
-  and carries a ``cache_control`` breakpoint so it is prompt-cached across cycles.
-- All volatile inputs (candidates, portfolio, regime) go in the user turn, after
-  the cached prefix.
-- Output is structured + validated via ``messages.parse`` against ``LLMDecision``.
+- Uses OpenRouter's OpenAI-compatible completions endpoint.
+- Default model is `deepseek/deepseek-v4.1-flash`, configurable via `OPENROUTER_MODEL`.
+- Structured JSON output is enforced and validated against ``LLMDecision``.
 - The LLM can only *select from and size* the provided candidates — it cannot
   invent trades. Whatever it returns is re-validated against the guardrails by the
   orchestrator (defense in depth), so a hallucinated or oversized pick is rejected.
@@ -19,17 +17,16 @@ Design notes:
 from __future__ import annotations
 
 import json
+import os
 
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from ..models import CandidateTrade
 
-MODEL = "claude-opus-4-8"
-MAX_TOKENS = 16000
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Static — DO NOT interpolate dates, IDs, or per-request data here, or the prompt
-# cache breaks. All dynamic context goes in the user message.
 SYSTEM_PROMPT = """\
 You are the trade-selection layer of TastyAgent, an options-trading agent that \
 mechanically applies tastytrade's premium-selling methodology. You are given a set \
@@ -68,6 +65,19 @@ re-check sizing and risk limits and may reduce or reject your pick.
 existing tech exposure"). No boilerplate.
 - In `commentary`, briefly explain the overall shape of your decision (what you \
 prioritized, what you skipped and why).
+
+Response format:
+You MUST respond ONLY with a valid JSON object matching this schema:
+{
+  "selections": [
+    {
+      "candidate_id": "string (the exact id from candidate list)",
+      "contracts": 1,
+      "rationale": "string"
+    }
+  ],
+  "commentary": "string"
+}
 """
 
 
@@ -81,9 +91,11 @@ class LLMTradeSelection(BaseModel):
 
 class LLMDecision(BaseModel):
     selections: list[LLMTradeSelection] = Field(
-        description="Candidates to open now; may be empty."
+        default_factory=list, description="Candidates to open now; may be empty."
     )
-    commentary: str = Field(description="Overall explanation of the decision.")
+    commentary: str = Field(
+        default="", description="Overall explanation of the decision."
+    )
 
 
 def candidate_id(candidate: CandidateTrade, index: int) -> str:
@@ -136,9 +148,22 @@ def build_user_message(
         + json.dumps(regime, indent=2, sort_keys=True)
         + "\n\nCANDIDATES (all have passed hard guardrails):\n"
         + json.dumps(payload, indent=2, sort_keys=True)
-        + "\n\nSelect which candidates to open now, size each, and explain."
+        + "\n\nSelect which candidates to open now, size each, and explain in JSON format."
     )
     return text, id_map
+
+
+def _clean_json_text(text: str) -> str:
+    """Strip markdown code fence blocks if returned by the model."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
 
 
 async def select_trades(
@@ -146,9 +171,12 @@ async def select_trades(
     portfolio: dict,
     regime: dict,
     *,
-    client: AsyncAnthropic | None = None,
+    client: AsyncOpenAI | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> tuple[LLMDecision, dict[str, CandidateTrade]]:
-    """Ask Claude to choose among candidates. Returns (decision, id->candidate map).
+    """Ask OpenRouter LLM to choose among candidates. Returns (decision, id->candidate map).
 
     The caller MUST re-validate every returned selection against the guardrails and
     risk limits before placing any order.
@@ -156,25 +184,46 @@ async def select_trades(
     if not candidates:
         return LLMDecision(selections=[], commentary="No candidates supplied."), {}
 
-    client = client or AsyncAnthropic()
     user_text, id_map = build_user_message(candidates, portfolio, regime)
 
-    response = await client.messages.parse(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking={"type": "adaptive"},
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
+    api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+    base_url = base_url or os.environ.get("OPENROUTER_BASE_URL", DEFAULT_BASE_URL)
+    model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+
+    if client is None:
+        headers = {}
+        site_url = os.environ.get("OPENROUTER_SITE_URL")
+        app_name = os.environ.get("OPENROUTER_APP_NAME", "TastyAgent")
+        if site_url:
+            headers["HTTP-Referer"] = site_url
+        if app_name:
+            headers["X-Title"] = app_name
+
+        client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key or "missing-key",
+            default_headers=headers if headers else None,
+        )
+
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
         ],
-        messages=[{"role": "user", "content": user_text}],
-        output_format=LLMDecision,
+        response_format={"type": "json_object"},
     )
 
-    decision = response.parsed_output
+    raw_content = response.choices[0].message.content or "{}"
+    try:
+        cleaned = _clean_json_text(raw_content)
+        decision = LLMDecision.model_validate_json(cleaned)
+    except Exception as e:  # noqa: BLE001
+        decision = LLMDecision(
+            selections=[],
+            commentary=f"Failed to parse LLM response as JSON: {e}. Raw content: {raw_content[:200]}",
+        )
+
     # Drop any hallucinated candidate ids defensively (guardrails re-check the rest).
     decision.selections = [s for s in decision.selections if s.candidate_id in id_map]
     return decision, id_map
