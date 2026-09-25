@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import asdict, fields, replace
 from datetime import date, datetime
+import logging
+import os
 from typing import Iterator
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -233,6 +235,38 @@ def create_app(
             )
         finally:
             sess.close()
+
+    @app.on_event("startup")
+    async def _on_startup() -> None:
+        if app.state.client is not None and hasattr(app.state.client, "connect"):
+            try:
+                await app.state.client.connect()
+            except Exception as e:
+                logging.getLogger("tastyagent.api").warning("IBKR connection failed on startup: %s", e)
+        if os.environ.get("TASTYAGENT_AUTO_START_SCHEDULER", "false").lower() in ("1", "true", "yes"):
+            if not scheduler_running():
+                from ..scheduler import run_loop
+
+                stop = asyncio.Event()
+                app.state.scheduler_stop = stop
+                app.state.scheduler_task = asyncio.create_task(
+                    run_loop(
+                        _tick,
+                        interval_seconds=app.state.runtime.scheduler_interval_seconds,
+                        market_hours_only=app.state.runtime.scheduler_market_hours_only,
+                        stop=stop,
+                    )
+                )
+
+    @app.on_event("shutdown")
+    async def _on_shutdown() -> None:
+        if app.state.scheduler_stop is not None:
+            app.state.scheduler_stop.set()
+        if app.state.client is not None and hasattr(app.state.client, "disconnect"):
+            try:
+                await app.state.client.disconnect()
+            except Exception as e:
+                logging.getLogger("tastyagent.api").debug("IBKR disconnect on shutdown: %s", e)
 
     @app.post("/api/scheduler/start", response_model=StatusOut)
     async def scheduler_start(
