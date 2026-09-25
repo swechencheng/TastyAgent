@@ -207,6 +207,17 @@ export default function App() {
           Auto: {s?.scheduler_running ? "ON" : "OFF"}
         </button>
 
+        <button
+          onClick={onRun}
+          disabled={running}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          )}
+        >
+          {running ? <Loader2 className="size-4 animate-spin text-brand" /> : <Play className="size-4 text-brand" />}
+          {running ? "Running cycle…" : "Run cycle"}
+        </button>
+
         <div className="ml-auto flex items-baseline gap-2">
           <span className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">P/L</span>
           <span className={cn("font-mono text-base font-semibold tabular-nums", total > 0 ? "text-gain" : total < 0 ? "text-loss" : "")}>
@@ -261,17 +272,13 @@ export default function App() {
               );
             })}
           </div>
-          <Button onClick={onRun} disabled={running} className="w-full max-[680px]:hidden">
-            {running ? <Loader2 className="size-[18px] animate-spin" /> : <Play className="size-[18px]" />}
-            {running ? "Running cycle…" : "Run cycle"}
-          </Button>
         </nav>
 
         {/* ---- Content ---- */}
         <main className="flex-1 overflow-y-auto px-8 pb-16 pt-7 max-[680px]:px-4 max-[680px]:pb-24">
           {status.error ? (
             <div className="mx-auto mt-20 max-w-md rounded-xl border border-loss/40 bg-loss-soft p-6 text-center text-sm text-loss">
-              Could not reach the API at <code>:8000</code>. Start the backend, then this dashboard will populate.
+              Could not reach the API at <code>:3060</code>. Start the backend, then this dashboard will populate.
             </div>
           ) : (
             <>
