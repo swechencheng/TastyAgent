@@ -11,9 +11,11 @@ import {
   LayoutDashboard,
   ListChecks,
   Loader2,
+  Menu,
   OctagonX,
   Play,
   Settings as SettingsIcon,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,6 +67,7 @@ export default function App() {
   const [route, setRoute] = useState("overview");
   const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
   const [running, setRunning] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const status = useSWR<Status>("/api/status", fetcher, POLL);
   const pnl = useSWR<Pnl>("/api/pnl", fetcher, POLL);
@@ -165,8 +168,8 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* ---- Status bar ---- */}
-      <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-border bg-black px-5">
+      {/* ---- Desktop Status bar ---- */}
+      <header className="hidden md:flex h-14 flex-shrink-0 items-center gap-4 border-b border-border bg-black px-5">
         <div className="text-[18px] font-bold tracking-[-0.02em]">
           Tasty<span className="text-brand">Agent</span>
         </div>
@@ -246,10 +249,209 @@ export default function App() {
         </button>
       </header>
 
+      {/* ---- Mobile Status bar ---- */}
+      <header className="flex md:hidden flex-col border-b border-border bg-black">
+        {/* Row 1: Nav Menu Button + Logo + Market Badge + P/L + NotificationBell */}
+        <div className="flex h-12 items-center justify-between px-3 gap-2 border-b border-border/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface hover:text-foreground"
+              aria-label="Open Navigation"
+            >
+              <Menu className="size-5" />
+            </button>
+            <div className="text-[17px] font-bold tracking-tight shrink-0">
+              Tasty<span className="text-brand">Agent</span>
+            </div>
+            {s && (
+              <span
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  s.market_open ? "bg-gain-soft text-gain" : "bg-surface-2 text-muted-foreground"
+                )}
+              >
+                <span className={cn("size-1.5 rounded-full", s.market_open ? "bg-gain" : "bg-text-faint")} />
+                {s.market_open ? "Open" : "Closed"}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-baseline gap-1">
+              <span className="text-[10px] uppercase text-text-faint">P/L</span>
+              <span className={cn("font-mono text-sm font-semibold tabular-nums", total > 0 ? "text-gain" : total < 0 ? "text-loss" : "")}>
+                {fmtMoneySigned(total)}
+              </span>
+            </div>
+            <NotificationBell />
+          </div>
+        </div>
+
+        {/* Row 2: Action bar (scrollable pills, no wrap, no overflow) */}
+        <div className="flex items-center gap-2 px-3 py-1.5 overflow-x-auto no-scrollbar bg-surface/30">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-surface-2 px-2.5 py-1 text-xs text-foreground hover:border-border-strong">
+                <Bot className="size-3.5 text-brand" />
+                {s ? MODE_LABELS[s.mode] ?? s.mode : "—"}
+                <ChevronDown className="size-3 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {Object.entries(MODE_LABELS).map(([v, l]) => (
+                <DropdownMenuItem key={v} active={s?.mode === v} onSelect={() => changeMode(v)}>
+                  {l}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <button
+            onClick={toggleAuto}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              s?.scheduler_running
+                ? "border-gain/50 bg-gain-soft text-gain"
+                : "border-border bg-transparent text-muted-foreground hover:border-border-strong"
+            )}
+          >
+            <span className={cn("size-1.5 rounded-full", s?.scheduler_running ? "bg-gain" : "bg-text-faint")} />
+            Auto: {s?.scheduler_running ? "ON" : "OFF"}
+          </button>
+
+          <button
+            onClick={onRun}
+            disabled={running}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {running ? <Loader2 className="size-3.5 animate-spin text-brand" /> : <Play className="size-3.5 text-brand" />}
+            {running ? "Running…" : "Run cycle"}
+          </button>
+
+          <button
+            onClick={askKill}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              s?.kill_switch
+                ? "border-brand bg-brand text-white"
+                : "border-brand/70 bg-transparent text-brand hover:bg-brand-soft"
+            )}
+          >
+            <OctagonX className="size-3.5" />
+            {s?.kill_switch ? "Kill ON" : "Kill"}
+          </button>
+        </div>
+      </header>
+
+      {/* ---- Mobile Navigation Drawer ---- */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          {/* Drawer Panel */}
+          <div className="fixed inset-y-0 left-0 w-[280px] max-w-[85vw] bg-black border-r border-border p-4 flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            <div className="flex flex-col gap-4">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="text-lg font-bold tracking-tight">
+                  Tasty<span className="text-brand">Agent</span>
+                </div>
+                <button
+                  onClick={() => setMobileNavOpen(false)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-2 hover:text-white"
+                  aria-label="Close menu"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Mode & Status quick info */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2 p-2.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <Bot className="size-4 text-brand" />
+                  <span className="font-medium text-foreground">{s ? MODE_LABELS[s.mode] ?? s.mode : "—"}</span>
+                </div>
+                <span className={cn("text-[11px] font-medium", s?.market_open ? "text-gain" : "text-muted-foreground")}>
+                  Market {s?.market_open ? "Open" : "Closed"}
+                </span>
+              </div>
+
+              {/* Navigation list */}
+              <div className="flex flex-col gap-1">
+                <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-faint">
+                  Navigation
+                </div>
+                {NAV.map((nv) => {
+                  const active = route === nv.id;
+                  return (
+                    <button
+                      key={nv.id}
+                      onClick={() => {
+                        setRoute(nv.id);
+                        setMobileNavOpen(false);
+                      }}
+                      className={cn(
+                        "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                        active
+                          ? "bg-brand-soft text-white [&_svg]:text-brand font-semibold"
+                          : "text-muted-foreground hover:bg-surface hover:text-foreground"
+                      )}
+                    >
+                      <nv.icon className="size-5" />
+                      <span>{nv.label}</span>
+                      {nv.id === "pending" && pendingCount > 0 && (
+                        <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-white">
+                          {pendingCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Drawer Footer Actions */}
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <span>Scheduler</span>
+                <span className={s?.scheduler_running ? "text-gain font-medium" : "text-muted-foreground"}>
+                  {s?.scheduler_running ? "Running (Live)" : "Stopped"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <span>Total P/L</span>
+                <span className={cn("font-mono font-semibold", total > 0 ? "text-gain" : total < 0 ? "text-loss" : "")}>
+                  {fmtMoneySigned(total)}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  askKill();
+                }}
+                className={cn(
+                  "mt-1 flex w-full items-center justify-center gap-2 rounded-lg border py-2 text-xs font-semibold transition-colors",
+                  s?.kill_switch
+                    ? "border-brand bg-brand text-white"
+                    : "border-brand/60 bg-transparent text-brand hover:bg-brand-soft"
+                )}
+              >
+                <OctagonX className="size-4" />
+                {s?.kill_switch ? "Kill Switch ENGAGED" : "Kill Switch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1">
-        {/* ---- Sidebar ---- */}
-        <nav className="flex w-[220px] flex-shrink-0 flex-col gap-2 border-r border-border bg-black p-3 max-[680px]:fixed max-[680px]:inset-x-0 max-[680px]:bottom-0 max-[680px]:z-50 max-[680px]:w-full max-[680px]:flex-row max-[680px]:border-r-0 max-[680px]:border-t">
-          <div className="flex flex-1 flex-col gap-0.5 max-[680px]:flex-row">
+        {/* ---- Desktop Sidebar ---- */}
+        <nav className="hidden md:flex w-[220px] flex-shrink-0 flex-col gap-2 border-r border-border bg-black p-3">
+          <div className="flex flex-1 flex-col gap-0.5">
             {NAV.map((nv) => {
               const active = route === nv.id;
               return (
@@ -262,9 +464,9 @@ export default function App() {
                   )}
                 >
                   <nv.icon />
-                  <span className="max-[680px]:hidden">{nv.label}</span>
+                  <span>{nv.label}</span>
                   {nv.id === "pending" && pendingCount > 0 && (
-                    <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold leading-none text-white max-[680px]:absolute max-[680px]:right-1 max-[680px]:top-1 max-[680px]:ml-0">
+                    <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold leading-none text-white">
                       {pendingCount}
                     </span>
                   )}
@@ -275,7 +477,7 @@ export default function App() {
         </nav>
 
         {/* ---- Content ---- */}
-        <main className="flex-1 overflow-y-auto px-8 pb-16 pt-7 max-[680px]:px-4 max-[680px]:pb-24">
+        <main className="flex-1 overflow-y-auto px-4 md:px-8 pt-4 md:pt-7 pb-24 md:pb-16">
           {status.error ? (
             <div className="mx-auto mt-20 max-w-md rounded-xl border border-loss/40 bg-loss-soft p-6 text-center text-sm text-loss">
               Could not reach the API at <code>:3060</code>. Start the backend, then this dashboard will populate.
@@ -298,6 +500,35 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* ---- Mobile Bottom Tab Bar ---- */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1 py-1 pb-[max(0.35rem,env(safe-area-inset-bottom))]">
+        {NAV.map((nv) => {
+          const active = route === nv.id;
+          return (
+            <button
+              key={nv.id}
+              onClick={() => setRoute(nv.id)}
+              className={cn(
+                "relative flex flex-1 flex-col items-center justify-center py-1 text-center transition-colors",
+                active ? "text-brand" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <div className="relative">
+                <nv.icon className="size-5" />
+                {nv.id === "pending" && pendingCount > 0 && (
+                  <span className="absolute -top-1 -right-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+                    {pendingCount}
+                  </span>
+                )}
+              </div>
+              <span className={cn("text-[10px] tracking-tight mt-0.5", active ? "font-semibold text-brand" : "font-normal")}>
+                {nv.label === "Pending Trades" ? "Pending" : nv.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
 
       <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />
       <Toaster />

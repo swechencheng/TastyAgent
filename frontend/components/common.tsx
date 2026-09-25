@@ -28,27 +28,31 @@ export function Kpi({
 }) {
   const valTone = value && value[0] === "+" ? "text-gain" : value && value[0] === "−" ? "text-loss" : "";
   return (
-    <Card className="p-4">
-      <div className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 font-mono text-[26px] font-semibold leading-none tabular-nums", valTone)}>
+    <Card className="p-3.5 md:p-4">
+      <div className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground truncate">{label}</div>
+      <div className={cn("mt-1.5 md:mt-2 font-mono text-[20px] md:text-[26px] font-semibold leading-none tabular-nums", valTone)}>
         {value}
       </div>
-      {delta != null && (
-        <span
-          className={cn(
-            "mt-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px]",
-            deltaTone === "up" && "bg-gain-soft text-gain",
-            deltaTone === "down" && "bg-loss-soft text-loss",
-            deltaTone === "flat" && "bg-surface-2 text-muted-foreground"
+      {(delta != null || sub) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {delta != null && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] md:text-[11px]",
+                deltaTone === "up" && "bg-gain-soft text-gain",
+                deltaTone === "down" && "bg-loss-soft text-loss",
+                deltaTone === "flat" && "bg-surface-2 text-muted-foreground"
+              )}
+            >
+              {deltaTone === "up" ? "▲" : deltaTone === "down" ? "▼" : "•"} {delta}
+            </span>
           )}
-        >
-          {deltaTone === "up" ? "▲" : deltaTone === "down" ? "▼" : "•"} {delta}
-        </span>
-      )}
-      {sub && (
-        <span className="ml-2 mt-2.5 inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-          {sub}
-        </span>
+          {sub && (
+            <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[10px] md:text-[11px] text-muted-foreground">
+              {sub}
+            </span>
+          )}
+        </div>
       )}
     </Card>
   );
@@ -69,15 +73,15 @@ export function BuyingPowerCard({
   void used;
   const barColor = pctUsed > 80 ? "bg-loss" : pctUsed > 60 ? "bg-warn" : "bg-gain";
   return (
-    <Card className="p-4">
-      <div className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Buying power</div>
-      <div className="mt-2 font-mono text-[26px] font-semibold leading-none tabular-nums">
+    <Card className="p-3.5 md:p-4">
+      <div className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground truncate">Buying power</div>
+      <div className="mt-1.5 md:mt-2 font-mono text-[20px] md:text-[26px] font-semibold leading-none tabular-nums">
         {fmtMoney0(remaining)}
       </div>
       <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-surface-2">
         <div className={cn("h-full rounded-full transition-[width]", barColor)} style={{ width: `${Math.min(pctUsed, 100)}%` }} />
       </div>
-      <div className="mt-1.5 flex justify-between font-mono text-[11px]">
+      <div className="mt-1.5 flex justify-between font-mono text-[10px] md:text-[11px]">
         <span className="text-muted-foreground">{pctUsed.toFixed(0)}% used</span>
         <span className="text-text-faint">{fmtMoney0(total)} cap</span>
       </div>

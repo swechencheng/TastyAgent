@@ -74,7 +74,7 @@ export default function Overview({ goTo }: { goTo: (r: string) => void }) {
     <div className="max-w-[1080px]">
       <PageHeader title="Overview" />
 
-      <div className="mb-[18px] grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3.5">
+      <div className="mb-[18px] grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3.5">
         <Kpi label="Total P/L" value={fmtMoneySigned(p.total_pnl)} delta={fmtPctSigned(p.profit_pct)} deltaTone={p.total_pnl >= 0 ? "up" : "down"} />
         <Kpi label="Realized" value={fmtMoneySigned(p.realized_pnl)} delta="closed" deltaTone={p.realized_pnl >= 0 ? "up" : "down"} />
         <Kpi label="Unrealized" value={fmtMoneySigned(p.unrealized_pnl)} delta="open" deltaTone={p.unrealized_pnl >= 0 ? "up" : "down"} />

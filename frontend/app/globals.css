@@ -49,14 +49,26 @@
   * {
     @apply border-border;
   }
+  html,
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
   /* tabular figures for all monospace numbers */
   .font-mono {
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
+}
+
+/* Hide scrollbar for clean horizontal pill navigation on mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 @layer components {
