@@ -46,14 +46,8 @@ Position Lifecycle & Isolation ── Strict orderRef tracking · 50% TP monitor
 2. **1-Year Historical IV Metrics (`backend/tastyagent/ibkr/metrics.py`)**:
    - Queries IBKR historical market data via `reqHistoricalDataAsync(contract, durationStr="1 Y", barSizeSetting="1 day", whatToShow="OPTION_IMPLIED_VOLATILITY")`.
    - Computes:
-     - **IV Rank**:
-       $$
-       \text{IV Rank} = \frac{\text{Current IV} - \text{Min IV}_{52w}}{\text{Max IV}_{52w} - \text{Min IV}_{52w}}
-       $$
-     - **IV Percentile**:
-       $$
-       \text{IV Percentile} = \frac{\sum \mathbf{1}(\text{IV}_t < \text{Current IV})}{N}
-       $$
+     - **IV Rank** = $`\frac{\text{Current IV} - \text{Min IV}_{52w}}{\text{Max IV}_{52w} - \text{Min IV}_{52w}}`$
+     - **IV Percentile** = $`\frac{\sum \mathbf{1}(\text{IV}_t < \text{Current IV})}{N}`$
    - Caches calculated metrics into a local SQLite table (`iv_metrics_cache`) with a daily TTL `(symbol, cache_date)` to avoid redundant gateway requests.
 3. **Option Chain Resolution & Greeks Streaming (`backend/tastyagent/ibkr/marketdata.py`)**:
    - Fetches underlying spot prices using real-time quotes with automatic fallback to historical daily closes (`reqHistoricalDataAsync`) for non-subscribed exchanges.
