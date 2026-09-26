@@ -60,7 +60,12 @@ async def get_underlying_price(ib: IB, symbol: str, timeout: float = 6.0) -> Dec
     try:
         while asyncio.get_event_loop().time() < end_time:
             await asyncio.sleep(0.2)
-            if ticker.bid is not None and ticker.ask is not None and ticker.bid > 0 and ticker.ask > 0:
+            if (
+                ticker.bid is not None
+                and ticker.ask is not None
+                and ticker.bid > 0
+                and ticker.ask > 0
+            ):
                 return Decimal(str((ticker.bid + ticker.ask) / 2))
             if ticker.last is not None and ticker.last > 0:
                 return Decimal(str(ticker.last))
@@ -77,7 +82,14 @@ async def get_underlying_price(ib: IB, symbol: str, timeout: float = 6.0) -> Dec
     # Fallback to historical daily bar close (available for all symbols without Level 1 live quote subscription)
     try:
         bars = await asyncio.wait_for(
-            ib.reqHistoricalDataAsync(contract, endDateTime="", durationStr="2 D", barSizeSetting="1 day", whatToShow="TRADES", useRTH=True),
+            ib.reqHistoricalDataAsync(
+                contract,
+                endDateTime="",
+                durationStr="2 D",
+                barSizeSetting="1 day",
+                whatToShow="TRADES",
+                useRTH=True,
+            ),
             timeout=timeout,
         )
         if bars:
@@ -123,7 +135,8 @@ async def snapshot_options(
     snaps: Dict[int, OptionSnapshot] = {
         c.conId: OptionSnapshot(
             con_id=c.conId,
-            local_symbol=c.localSymbol or f"{c.symbol}_{c.right}_{c.strike}_{c.lastTradeDateOrContractMonth}",
+            local_symbol=c.localSymbol
+            or f"{c.symbol}_{c.right}_{c.strike}_{c.lastTradeDateOrContractMonth}",
             strike=float(c.strike),
             right=c.right,
             expiration=c.lastTradeDateOrContractMonth,
@@ -131,7 +144,9 @@ async def snapshot_options(
         for c in contracts
     }
 
-    tickers = [ib.reqMktData(c, genericTickList="106", snapshot=False) for c in contracts]
+    tickers = [
+        ib.reqMktData(c, genericTickList="106", snapshot=False) for c in contracts
+    ]
     end_time = asyncio.get_event_loop().time() + timeout
 
     try:
@@ -149,8 +164,14 @@ async def snapshot_options(
                 greeks = t.modelGreeks or t.bidGreeks or t.askGreeks
                 if greeks and greeks.delta is not None:
                     snap.delta = float(greeks.delta)
-                    snap.implied_vol = float(greeks.impliedVol) if greeks.impliedVol is not None else None
-                    snap.model_price = float(greeks.optPrice) if greeks.optPrice is not None else None
+                    snap.implied_vol = (
+                        float(greeks.impliedVol)
+                        if greeks.impliedVol is not None
+                        else None
+                    )
+                    snap.model_price = (
+                        float(greeks.optPrice) if greeks.optPrice is not None else None
+                    )
 
                 if not snap.complete:
                     all_done = False
@@ -171,9 +192,10 @@ def select_by_delta(
 ) -> Optional[Option]:
     """Find the option in the list whose absolute delta is closest to target_delta."""
     with_delta = [
-        o for o in options
-        if (s := snaps.get(o.conId)) and s.delta is not None
+        o for o in options if (s := snaps.get(o.conId)) and s.delta is not None
     ]
     if not with_delta:
         return None
-    return min(with_delta, key=lambda o: abs(abs(snaps[o.conId].delta or 0.0) - target_delta))
+    return min(
+        with_delta, key=lambda o: abs(abs(snaps[o.conId].delta or 0.0) - target_delta)
+    )

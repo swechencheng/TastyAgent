@@ -92,10 +92,15 @@ class IBKRClient:
                     managed,
                     managed[0] if managed else "",
                 )
-                self._trading_account = managed[0] if managed else self.settings.ibkr_account
+                self._trading_account = (
+                    managed[0] if managed else self.settings.ibkr_account
+                )
         elif managed:
             self._trading_account = managed[0]
-            logger.info("No IBKR_ACCOUNT specified; using primary account: %s", self._trading_account)
+            logger.info(
+                "No IBKR_ACCOUNT specified; using primary account: %s",
+                self._trading_account,
+            )
 
         # Connect data session
         logger.info(

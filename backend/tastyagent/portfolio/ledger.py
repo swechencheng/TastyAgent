@@ -32,7 +32,9 @@ class Ledger:
         return ev
 
     # --- decisions ---
-    def record_decision(self, mode: TradingMode | str, commentary: str, considered: int) -> Decision:
+    def record_decision(
+        self, mode: TradingMode | str, commentary: str, considered: int
+    ) -> Decision:
         mode_val = mode.value if hasattr(mode, "value") else str(mode)
         d = Decision(mode=mode_val, commentary=commentary, considered=considered)
         self.s.add(d)
@@ -61,7 +63,8 @@ class Ledger:
             entry_credit=candidate.max_profit * contracts,
             buying_power=candidate.buying_power_reduction * contracts,
             dte_at_entry=candidate.dte,
-            current_cost_to_close=candidate.max_profit * contracts,  # 0% profit at entry
+            current_cost_to_close=candidate.max_profit
+            * contracts,  # 0% profit at entry
         )
         trade.legs = [
             TradeLeg(
@@ -84,7 +87,9 @@ class Ledger:
             self.record_event(trade, "planned", "Order created")
         return trade
 
-    def record_planned(self, candidate, contracts, rationale, mode, decision=None) -> Trade:
+    def record_planned(
+        self, candidate, contracts, rationale, mode, decision=None
+    ) -> Trade:
         """Record a trade awaiting action. Initial status depends on the mode."""
         status = {
             TradingMode.LIVE_APPROVAL: TradeStatus.PENDING_APPROVAL,
@@ -101,7 +106,11 @@ class Ledger:
         trade.status = TradeStatus.WORKING
         trade.broker_order_id = broker_order_id
         self.s.commit()
-        self.record_event(trade, "working", f"Order working — submitted to broker (#{broker_order_id})")
+        self.record_event(
+            trade,
+            "working",
+            f"Order working — submitted to broker (#{broker_order_id})",
+        )
 
     def mark_open(self, trade: Trade, opened_at: datetime | None = None) -> None:
         trade.status = TradeStatus.OPEN
@@ -148,7 +157,9 @@ class Ledger:
         Models a roll as close-old + open-new; the new trade is linked back via its
         rationale and starts WORKING with the broker order id.
         """
-        self.close_trade(old_trade, exit_debit=exit_debit, exit_reason=reason, kind="rolled")
+        self.close_trade(
+            old_trade, exit_debit=exit_debit, exit_reason=reason, kind="rolled"
+        )
         new = self._new_trade(
             new_candidate,
             contracts,
@@ -159,7 +170,11 @@ class Ledger:
         )
         new.broker_order_id = new_order_id
         self.s.commit()
-        self.record_event(new, "working", f"Rolled from #{old_trade.id} — order working (#{new_order_id})")
+        self.record_event(
+            new,
+            "working",
+            f"Rolled from #{old_trade.id} — order working (#{new_order_id})",
+        )
         return new
 
     # --- queries ---
@@ -167,7 +182,9 @@ class Ledger:
         return self.s.get(Trade, trade_id)
 
     def _by_status(self, *statuses: TradeStatus) -> list[Trade]:
-        stmt = select(Trade).where(Trade.status.in_(statuses)).order_by(Trade.created_at)
+        stmt = (
+            select(Trade).where(Trade.status.in_(statuses)).order_by(Trade.created_at)
+        )
         return list(self.s.scalars(stmt))
 
     def open_trades(self) -> list[Trade]:

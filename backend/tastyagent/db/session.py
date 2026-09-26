@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "tastyagent.db"
+DEFAULT_DB_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "tastyagent.db"
+)
 
 
 def make_engine(url: str | None = None, *, echo: bool = False) -> Engine:
@@ -25,6 +27,7 @@ def init_db(engine: Engine) -> None:
     with engine.connect() as conn:
         try:
             from sqlalchemy import text
+
             res = conn.execute(text("PRAGMA table_info(trades)"))
             cols = {row[1] for row in res.fetchall()}
             if cols:

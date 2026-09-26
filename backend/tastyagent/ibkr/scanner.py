@@ -15,8 +15,26 @@ logger = logging.getLogger(__name__)
 
 # Fallback liquid symbols in case the scanner is temporarily unavailable (e.g. outside market hours or network glitch)
 FALLBACK_SYMBOLS = [
-    "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA",
-    "AMD", "NFLX", "COIN", "DIS", "BA", "INTC", "PLTR", "UBER", "BABA", "MARA"
+    "SPY",
+    "QQQ",
+    "IWM",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "TSLA",
+    "AMD",
+    "NFLX",
+    "COIN",
+    "DIS",
+    "BA",
+    "INTC",
+    "PLTR",
+    "UBER",
+    "BABA",
+    "MARA",
 ]
 
 
@@ -61,12 +79,18 @@ async def scan_high_options_volume(
                 symbols.append(symbol)
 
         if symbols:
-            logger.info("IBKR Market Scanner returned %d symbols for '%s'", len(symbols), scan_code)
+            logger.info(
+                "IBKR Market Scanner returned %d symbols for '%s'",
+                len(symbols),
+                scan_code,
+            )
             return symbols[:num_rows]
 
         logger.warning("IBKR Market Scanner returned 0 items; using fallback symbols.")
         return FALLBACK_SYMBOLS[:num_rows]
 
     except Exception as e:
-        logger.error("Error executing IBKR market scanner: %s. Using fallback symbols.", e)
+        logger.error(
+            "Error executing IBKR market scanner: %s. Using fallback symbols.", e
+        )
         return FALLBACK_SYMBOLS[:num_rows]

@@ -221,6 +221,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# VSCode
+.vscode/
+
 # IBTastyAgent runtime + frontend
 backend/data/
 *.db

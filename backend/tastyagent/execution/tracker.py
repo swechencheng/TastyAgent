@@ -13,7 +13,15 @@ from ..portfolio.ledger import Ledger
 
 # Broker order states we treat as filled vs dead.
 FILLED = {"Filled", "filled"}
-DEAD = {"Cancelled", "Canceled", "Rejected", "Expired", "Removed", "rejected", "expired"}
+DEAD = {
+    "Cancelled",
+    "Canceled",
+    "Rejected",
+    "Expired",
+    "Removed",
+    "rejected",
+    "expired",
+}
 
 
 def reconcile_fills(ledger: Ledger, order_status: dict[str, str]) -> None:

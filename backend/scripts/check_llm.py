@@ -34,31 +34,60 @@ EXP = dt.date.today() + dt.timedelta(days=45)
 
 
 def leg(ot, strike, delta):
-    return Leg(option_type=ot, strike=strike, expiration=EXP, action=Action.SELL_TO_OPEN, delta=delta)
+    return Leg(
+        option_type=ot,
+        strike=strike,
+        expiration=EXP,
+        action=Action.SELL_TO_OPEN,
+        delta=delta,
+    )
 
 
 CANDIDATES = [
     CandidateTrade(
-        symbol="SPY", strategy=Strategy.SHORT_STRANGLE,
+        symbol="SPY",
+        strategy=Strategy.SHORT_STRANGLE,
         legs=(leg(OptionType.PUT, 710, -0.16), leg(OptionType.CALL, 800, 0.15)),
-        dte=45, net_credit=6.40, max_profit=640, max_loss=float("inf"),
-        buying_power_reduction=18000, underlying_price=757,
-        iv_rank=0.34, liquidity=Liquidity(0.03, 12000, 5000), earnings_in_days=None,
+        dte=45,
+        net_credit=6.40,
+        max_profit=640,
+        max_loss=float("inf"),
+        buying_power_reduction=18000,
+        underlying_price=757,
+        iv_rank=0.34,
+        liquidity=Liquidity(0.03, 12000, 5000),
+        earnings_in_days=None,
     ),
     CandidateTrade(
-        symbol="XLE", strategy=Strategy.NAKED_PUT,
+        symbol="XLE",
+        strategy=Strategy.NAKED_PUT,
         legs=(leg(OptionType.PUT, 85, -0.18),),
-        dte=46, net_credit=1.30, max_profit=130, max_loss=float("inf"),
-        buying_power_reduction=1700, underlying_price=92,
-        iv_rank=0.61, liquidity=Liquidity(0.05, 6000, 1500), earnings_in_days=None,
+        dte=46,
+        net_credit=1.30,
+        max_profit=130,
+        max_loss=float("inf"),
+        buying_power_reduction=1700,
+        underlying_price=92,
+        iv_rank=0.61,
+        liquidity=Liquidity(0.05, 6000, 1500),
+        earnings_in_days=None,
     ),
     CandidateTrade(
-        symbol="AMD", strategy=Strategy.PUT_CREDIT_SPREAD,
-        legs=(leg(OptionType.PUT, 150, -0.20),
-              Leg(OptionType.PUT, 140, EXP, Action.BUY_TO_OPEN, -0.12)),
-        dte=44, net_credit=2.10, max_profit=210, max_loss=790,
-        buying_power_reduction=790, underlying_price=178,
-        iv_rank=0.48, liquidity=Liquidity(0.04, 9000, 4000), earnings_in_days=None,
+        symbol="AMD",
+        strategy=Strategy.PUT_CREDIT_SPREAD,
+        legs=(
+            leg(OptionType.PUT, 150, -0.20),
+            Leg(OptionType.PUT, 140, EXP, Action.BUY_TO_OPEN, -0.12),
+        ),
+        dte=44,
+        net_credit=2.10,
+        max_profit=210,
+        max_loss=790,
+        buying_power_reduction=790,
+        underlying_price=178,
+        iv_rank=0.48,
+        liquidity=Liquidity(0.04, 9000, 4000),
+        earnings_in_days=None,
     ),
 ]
 

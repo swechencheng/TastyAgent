@@ -66,7 +66,9 @@ def _yahoo_chart(params: dict) -> list[tuple[date, float]]:
     """Daily SPY closes from Yahoo's keyless chart API. SPY proxies the S&P 500."""
     import httpx  # noqa: PLC0415
 
-    resp = httpx.get(_YAHOO_URL, params=params, headers={"User-Agent": _UA}, timeout=20.0)
+    resp = httpx.get(
+        _YAHOO_URL, params=params, headers={"User-Agent": _UA}, timeout=20.0
+    )
     resp.raise_for_status()
     result = resp.json()["chart"]["result"][0]
     timestamps = result["timestamp"]

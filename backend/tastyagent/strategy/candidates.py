@@ -48,14 +48,20 @@ def _get_strike(opt) -> float:
 
 
 def _get_exp(opt) -> date:
-    raw = getattr(opt, "lastTradeDateOrContractMonth", getattr(opt, "expiration_date", None))
+    raw = getattr(
+        opt, "lastTradeDateOrContractMonth", getattr(opt, "expiration_date", None)
+    )
     return _parse_exp_date(raw)
 
 
-def pick_expiration(expirations: list[date], params: StrategyParams, today: date) -> date | None:
+def pick_expiration(
+    expirations: list[date], params: StrategyParams, today: date
+) -> date | None:
     """Choose the listed expiration closest to target DTE within the [min,max] window."""
     target = today + timedelta(days=params.target_dte)
-    valid = [d for d in expirations if params.min_dte <= (d - today).days <= params.max_dte]
+    valid = [
+        d for d in expirations if params.min_dte <= (d - today).days <= params.max_dte
+    ]
     if not valid:
         return None
     return min(valid, key=lambda d: abs((d - target).days))
@@ -91,8 +97,20 @@ def build_strangle_candidate(
         return None
 
     legs = (
-        Leg(OptionType.PUT, _get_strike(put), _get_exp(put), Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
-        Leg(OptionType.CALL, _get_strike(call), _get_exp(call), Action.SELL_TO_OPEN, delta=call_snap.delta or 0.0),
+        Leg(
+            OptionType.PUT,
+            _get_strike(put),
+            _get_exp(put),
+            Action.SELL_TO_OPEN,
+            delta=put_snap.delta or 0.0,
+        ),
+        Leg(
+            OptionType.CALL,
+            _get_strike(call),
+            _get_exp(call),
+            Action.SELL_TO_OPEN,
+            delta=call_snap.delta or 0.0,
+        ),
     )
     liquidity = Liquidity(
         bid_ask_width_pct=max(_width_pct(put_snap), _width_pct(call_snap)),
@@ -116,8 +134,14 @@ def build_strangle_candidate(
 
 
 def build_naked_put_candidate(
-    symbol, underlying_price, iv_rank, dte, put: Option, put_snap: OptionSnapshot,
-    *, earnings_in_days: int | None = None,
+    symbol,
+    underlying_price,
+    iv_rank,
+    dte,
+    put: Option,
+    put_snap: OptionSnapshot,
+    *,
+    earnings_in_days: int | None = None,
 ) -> CandidateTrade | None:
     if put_snap.mid is None:
         return None
@@ -126,22 +150,43 @@ def build_naked_put_candidate(
         return None
     strike = _get_strike(put)
     legs = (
-        Leg(OptionType.PUT, strike, _get_exp(put), Action.SELL_TO_OPEN, delta=put_snap.delta or 0.0),
+        Leg(
+            OptionType.PUT,
+            strike,
+            _get_exp(put),
+            Action.SELL_TO_OPEN,
+            delta=put_snap.delta or 0.0,
+        ),
     )
     return CandidateTrade(
-        symbol=symbol, strategy=Strategy.NAKED_PUT, legs=legs, dte=dte,
-        net_credit=credit, max_profit=credit, max_loss=strike * 100 - credit,
+        symbol=symbol,
+        strategy=Strategy.NAKED_PUT,
+        legs=legs,
+        dte=dte,
+        net_credit=credit,
+        max_profit=credit,
+        max_loss=strike * 100 - credit,
         buying_power_reduction=estimate_undefined_bp(underlying_price),
-        underlying_price=underlying_price, iv_rank=iv_rank,
+        underlying_price=underlying_price,
+        iv_rank=iv_rank,
         liquidity=Liquidity(_width_pct(put_snap), _PLACEHOLDER_OI, _PLACEHOLDER_VOL),
         earnings_in_days=earnings_in_days,
     )
 
 
 def build_credit_spread_candidate(
-    symbol, underlying_price, iv_rank, dte, short_opt: Option, long_opt: Option,
-    short_snap: OptionSnapshot, long_snap: OptionSnapshot,
-    *, option_type: OptionType, strategy: Strategy, earnings_in_days: int | None = None,
+    symbol,
+    underlying_price,
+    iv_rank,
+    dte,
+    short_opt: Option,
+    long_opt: Option,
+    short_snap: OptionSnapshot,
+    long_snap: OptionSnapshot,
+    *,
+    option_type: OptionType,
+    strategy: Strategy,
+    earnings_in_days: int | None = None,
 ) -> CandidateTrade | None:
     """Defined-risk vertical: short + protective long of the same type."""
     if short_snap.mid is None or long_snap.mid is None:
@@ -153,23 +198,49 @@ def build_credit_spread_candidate(
     credit = net_ps * 100
     max_loss = (width - net_ps) * 100
     legs = (
-        Leg(option_type, _get_strike(short_opt), _get_exp(short_opt), Action.SELL_TO_OPEN, delta=short_snap.delta or 0.0),
-        Leg(option_type, _get_strike(long_opt), _get_exp(long_opt), Action.BUY_TO_OPEN, delta=long_snap.delta or 0.0),
+        Leg(
+            option_type,
+            _get_strike(short_opt),
+            _get_exp(short_opt),
+            Action.SELL_TO_OPEN,
+            delta=short_snap.delta or 0.0,
+        ),
+        Leg(
+            option_type,
+            _get_strike(long_opt),
+            _get_exp(long_opt),
+            Action.BUY_TO_OPEN,
+            delta=long_snap.delta or 0.0,
+        ),
     )
     return CandidateTrade(
-        symbol=symbol, strategy=strategy, legs=legs, dte=dte,
-        net_credit=credit, max_profit=credit, max_loss=max_loss,
+        symbol=symbol,
+        strategy=strategy,
+        legs=legs,
+        dte=dte,
+        net_credit=credit,
+        max_profit=credit,
+        max_loss=max_loss,
         buying_power_reduction=max_loss,  # defined risk: BP == max loss
-        underlying_price=underlying_price, iv_rank=iv_rank,
+        underlying_price=underlying_price,
+        iv_rank=iv_rank,
         liquidity=Liquidity(_width_pct(short_snap), _PLACEHOLDER_OI, _PLACEHOLDER_VOL),
         earnings_in_days=earnings_in_days,
     )
 
 
 def build_iron_condor_candidate(
-    symbol, underlying_price, iv_rank, dte,
-    put_short: Option, put_long: Option, call_short: Option, call_long: Option,
-    snaps: dict, *, earnings_in_days: int | None = None,
+    symbol,
+    underlying_price,
+    iv_rank,
+    dte,
+    put_short: Option,
+    put_long: Option,
+    call_short: Option,
+    call_long: Option,
+    snaps: dict,
+    *,
+    earnings_in_days: int | None = None,
 ) -> CandidateTrade | None:
     def _lookup_snap(opt) -> OptionSnapshot | None:
         con_id = getattr(opt, "conId", None)
@@ -189,16 +260,49 @@ def build_iron_condor_candidate(
     credit = net_ps * 100
     max_loss = (width - net_ps) * 100
     legs = (
-        Leg(OptionType.PUT, _get_strike(put_short), _get_exp(put_short), Action.SELL_TO_OPEN, delta=ps.delta or 0.0),
-        Leg(OptionType.PUT, _get_strike(put_long), _get_exp(put_long), Action.BUY_TO_OPEN, delta=pl.delta or 0.0),
-        Leg(OptionType.CALL, _get_strike(call_short), _get_exp(call_short), Action.SELL_TO_OPEN, delta=cs.delta or 0.0),
-        Leg(OptionType.CALL, _get_strike(call_long), _get_exp(call_long), Action.BUY_TO_OPEN, delta=cl.delta or 0.0),
+        Leg(
+            OptionType.PUT,
+            _get_strike(put_short),
+            _get_exp(put_short),
+            Action.SELL_TO_OPEN,
+            delta=ps.delta or 0.0,
+        ),
+        Leg(
+            OptionType.PUT,
+            _get_strike(put_long),
+            _get_exp(put_long),
+            Action.BUY_TO_OPEN,
+            delta=pl.delta or 0.0,
+        ),
+        Leg(
+            OptionType.CALL,
+            _get_strike(call_short),
+            _get_exp(call_short),
+            Action.SELL_TO_OPEN,
+            delta=cs.delta or 0.0,
+        ),
+        Leg(
+            OptionType.CALL,
+            _get_strike(call_long),
+            _get_exp(call_long),
+            Action.BUY_TO_OPEN,
+            delta=cl.delta or 0.0,
+        ),
     )
     return CandidateTrade(
-        symbol=symbol, strategy=Strategy.IRON_CONDOR, legs=legs, dte=dte,
-        net_credit=credit, max_profit=credit, max_loss=max_loss,
-        buying_power_reduction=max_loss, underlying_price=underlying_price, iv_rank=iv_rank,
-        liquidity=Liquidity(max(_width_pct(ps), _width_pct(cs)), _PLACEHOLDER_OI, _PLACEHOLDER_VOL),
+        symbol=symbol,
+        strategy=Strategy.IRON_CONDOR,
+        legs=legs,
+        dte=dte,
+        net_credit=credit,
+        max_profit=credit,
+        max_loss=max_loss,
+        buying_power_reduction=max_loss,
+        underlying_price=underlying_price,
+        iv_rank=iv_rank,
+        liquidity=Liquidity(
+            max(_width_pct(ps), _width_pct(cs)), _PLACEHOLDER_OI, _PLACEHOLDER_VOL
+        ),
         earnings_in_days=earnings_in_days,
     )
 
@@ -225,13 +329,19 @@ async def _candidates_for_symbol(
         cds = await client.data_ib.reqContractDetailsAsync(pattern)
         contracts = [cd.contract for cd in cds]
     except Exception as e:
-        logger.debug("Failed to fetch option contract details for %s %s: %s", symbol, exp_str, e)
+        logger.debug(
+            "Failed to fetch option contract details for %s %s: %s", symbol, exp_str, e
+        )
         contracts = []
 
     if not contracts:
         lo, hi = underlying * 0.7, underlying * 1.3
         eligible_strikes = [s for s in strikes if lo <= s <= hi]
-        contracts = [Option(symbol, exp_str, s, r, "SMART", currency="USD") for s in eligible_strikes for r in ("P", "C")]
+        contracts = [
+            Option(symbol, exp_str, s, r, "SMART", currency="USD")
+            for s in eligible_strikes
+            for r in ("P", "C")
+        ]
         await client.data_ib.qualifyContractsAsync(*contracts)
         contracts = [c for c in contracts if c.conId > 0]
 
@@ -262,19 +372,97 @@ async def _candidates_for_symbol(
     out: list[CandidateTrade] = []
 
     if p_short and c_short and sn(p_short) and sn(c_short):
-        out.append(build_strangle_candidate(symbol, underlying, ivr, dte, p_short, c_short, sn(p_short), sn(c_short), earnings_in_days=earn))
+        out.append(
+            build_strangle_candidate(
+                symbol,
+                underlying,
+                ivr,
+                dte,
+                p_short,
+                c_short,
+                sn(p_short),
+                sn(c_short),
+                earnings_in_days=earn,
+            )
+        )
     if p_short and sn(p_short):
-        out.append(build_naked_put_candidate(symbol, underlying, ivr, dte, p_short, sn(p_short), earnings_in_days=earn))
-    if p_short and p_long and sn(p_short) and sn(p_long) and _get_strike(p_long) < _get_strike(p_short):
-        out.append(build_credit_spread_candidate(symbol, underlying, ivr, dte, p_short, p_long, sn(p_short), sn(p_long), option_type=OptionType.PUT, strategy=Strategy.PUT_CREDIT_SPREAD, earnings_in_days=earn))
-    if c_short and c_long and sn(c_short) and sn(c_long) and _get_strike(c_long) > _get_strike(c_short):
-        out.append(build_credit_spread_candidate(symbol, underlying, ivr, dte, c_short, c_long, sn(c_short), sn(c_long), option_type=OptionType.CALL, strategy=Strategy.CALL_CREDIT_SPREAD, earnings_in_days=earn))
+        out.append(
+            build_naked_put_candidate(
+                symbol,
+                underlying,
+                ivr,
+                dte,
+                p_short,
+                sn(p_short),
+                earnings_in_days=earn,
+            )
+        )
     if (
-        p_short and c_short and p_long and c_long
+        p_short
+        and p_long
+        and sn(p_short)
+        and sn(p_long)
+        and _get_strike(p_long) < _get_strike(p_short)
+    ):
+        out.append(
+            build_credit_spread_candidate(
+                symbol,
+                underlying,
+                ivr,
+                dte,
+                p_short,
+                p_long,
+                sn(p_short),
+                sn(p_long),
+                option_type=OptionType.PUT,
+                strategy=Strategy.PUT_CREDIT_SPREAD,
+                earnings_in_days=earn,
+            )
+        )
+    if (
+        c_short
+        and c_long
+        and sn(c_short)
+        and sn(c_long)
+        and _get_strike(c_long) > _get_strike(c_short)
+    ):
+        out.append(
+            build_credit_spread_candidate(
+                symbol,
+                underlying,
+                ivr,
+                dte,
+                c_short,
+                c_long,
+                sn(c_short),
+                sn(c_long),
+                option_type=OptionType.CALL,
+                strategy=Strategy.CALL_CREDIT_SPREAD,
+                earnings_in_days=earn,
+            )
+        )
+    if (
+        p_short
+        and c_short
+        and p_long
+        and c_long
         and _get_strike(p_long) < _get_strike(p_short)
         and _get_strike(c_long) > _get_strike(c_short)
     ):
-        out.append(build_iron_condor_candidate(symbol, underlying, ivr, dte, p_short, p_long, c_short, c_long, snaps, earnings_in_days=earn))
+        out.append(
+            build_iron_condor_candidate(
+                symbol,
+                underlying,
+                ivr,
+                dte,
+                p_short,
+                p_long,
+                c_short,
+                c_long,
+                snaps,
+                earnings_in_days=earn,
+            )
+        )
 
     return [c for c in out if c is not None]
 
@@ -299,7 +487,9 @@ async def generate_candidates(
     async def guarded(symbol: str) -> list[CandidateTrade]:
         async with sem:
             try:
-                return await _candidates_for_symbol(client, params, today, symbol, metrics[symbol])
+                return await _candidates_for_symbol(
+                    client, params, today, symbol, metrics[symbol]
+                )
             except Exception as e:
                 logger.debug("Failed candidate generation for %s: %s", symbol, e)
                 return []

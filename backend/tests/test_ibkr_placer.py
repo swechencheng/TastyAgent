@@ -18,7 +18,11 @@ def mock_client():
     client.data_ib = MagicMock()
     client.trading_ib.qualifyContractsAsync = AsyncMock()
     client.data_ib.qualifyContractsAsync = AsyncMock()
-    client.trading_ib.whatIfOrderAsync = AsyncMock(return_value=MagicMock(initMarginChange=1000.0, maintMarginChange=800.0, commission=1.5))
+    client.trading_ib.whatIfOrderAsync = AsyncMock(
+        return_value=MagicMock(
+            initMarginChange=1000.0, maintMarginChange=800.0, commission=1.5
+        )
+    )
     return client
 
 
@@ -40,8 +44,18 @@ async def test_placer_immediate_fill_attaches_take_profit(mock_client):
         mode="sandbox",
         entry_credit=200.0,  # $2.00/share
         legs=[
-            TradeLeg(option_type="put", strike=550.0, expiration=date(2026, 11, 20), action="sell_to_open"),
-            TradeLeg(option_type="call", strike=600.0, expiration=date(2026, 11, 20), action="sell_to_open"),
+            TradeLeg(
+                option_type="put",
+                strike=550.0,
+                expiration=date(2026, 11, 20),
+                action="sell_to_open",
+            ),
+            TradeLeg(
+                option_type="call",
+                strike=600.0,
+                expiration=date(2026, 11, 20),
+                action="sell_to_open",
+            ),
         ],
     )
 
@@ -49,7 +63,9 @@ async def test_placer_immediate_fill_attaches_take_profit(mock_client):
     parent_order = MagicMock(orderId=101)
     parent_trade = MagicMock(
         order=parent_order,
-        orderStatus=OrderStatus(orderId=101, status="Filled", filled=1, avgFillPrice=-2.00),
+        orderStatus=OrderStatus(
+            orderId=101, status="Filled", filled=1, avgFillPrice=-2.00
+        ),
     )
 
     tp_order = MagicMock(orderId=102)

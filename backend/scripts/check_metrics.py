@@ -33,7 +33,9 @@ async def main() -> None:
         elapsed = time.time() - t0
         print(f"Initial fetch completed in {elapsed:.2f}s\n")
 
-        print(f"{'symbol':<8}{'IV Rank':>10}{'IV %ile':>10}{'Current IV':>12}{'52w Range (Min-Max)':>24}")
+        print(
+            f"{'symbol':<8}{'IV Rank':>10}{'IV %ile':>10}{'Current IV':>12}{'52w Range (Min-Max)':>24}"
+        )
         print("-" * 66)
         for sym in SYMBOLS:
             m = metrics.get(sym)
@@ -43,7 +45,11 @@ async def main() -> None:
             ivr_str = f"{m.iv_rank:.1%}"
             ivp_str = f"{m.iv_percentile:.1%}" if m.iv_percentile is not None else "N/A"
             cur_iv = f"{m.current_iv:.1%}" if m.current_iv is not None else "N/A"
-            rng = f"{m.min_iv:.1%} - {m.max_iv:.1%}" if m.min_iv is not None and m.max_iv is not None else "N/A"
+            rng = (
+                f"{m.min_iv:.1%} - {m.max_iv:.1%}"
+                if m.min_iv is not None and m.max_iv is not None
+                else "N/A"
+            )
             print(f"{sym:<8}{ivr_str:>10}{ivp_str:>10}{cur_iv:>12}{rng:>24}")
 
         # Test cache hit speed
@@ -51,7 +57,9 @@ async def main() -> None:
         t1 = time.time()
         cached_metrics = await get_iv_metrics(client.data_ib, SYMBOLS)
         cached_elapsed = time.time() - t1
-        print(f"Cached retrieval completed in {cached_elapsed * 1000:.2f} ms (instant!)")
+        print(
+            f"Cached retrieval completed in {cached_elapsed * 1000:.2f} ms (instant!)"
+        )
 
     finally:
         await client.disconnect()

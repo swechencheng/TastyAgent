@@ -14,13 +14,24 @@ from ..ibkr.metrics import IVMetrics, get_iv_metrics
 
 # A liquid, diversified default universe. Override via gather_context(watchlist=...).
 DEFAULT_WATCHLIST = [
-    "SPY", "QQQ", "IWM", "DIA",  # broad indices
-    "XLE", "XLF", "XLK", "GLD", "TLT",  # sectors / commodities / bonds
-    "AAPL", "AMD", "TSLA",  # liquid single names
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",  # broad indices
+    "XLE",
+    "XLF",
+    "XLK",
+    "GLD",
+    "TLT",  # sectors / commodities / bonds
+    "AAPL",
+    "AMD",
+    "TSLA",  # liquid single names
 ]
 
 
-def build_regime(metrics: dict[str, IVMetrics], params: StrategyParams, vix: float | None) -> dict:
+def build_regime(
+    metrics: dict[str, IVMetrics], params: StrategyParams, vix: float | None
+) -> dict:
     """Summarize cross-sectional IV into the LLM-facing regime dict."""
     iv_ranks = {s: m.iv_rank for s, m in metrics.items() if m.iv_rank is not None}
     avg = fmean(iv_ranks.values()) if iv_ranks else 0.0

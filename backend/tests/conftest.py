@@ -47,7 +47,9 @@ def make_candidate(**overrides) -> CandidateTrade:
         buying_power_reduction=2000.0,
         underlying_price=100.0,
         iv_rank=0.45,
-        liquidity=Liquidity(bid_ask_width_pct=0.04, open_interest=5000, daily_volume=2000),
+        liquidity=Liquidity(
+            bid_ask_width_pct=0.04, open_interest=5000, daily_volume=2000
+        ),
         earnings_in_days=None,
     )
     defaults.update(overrides)

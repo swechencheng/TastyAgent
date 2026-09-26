@@ -25,8 +25,20 @@ async def test_audit_take_profit_detects_missing_order(ledger):
         broker_order_id="1001",
         tp_order_id=None,  # No TP attached!
         legs=[
-            TradeLeg(option_type="put", strike=550.0, expiration=date(2026, 11, 20), action="sell_to_open", quantity=1),
-            TradeLeg(option_type="call", strike=600.0, expiration=date(2026, 11, 20), action="sell_to_open", quantity=1),
+            TradeLeg(
+                option_type="put",
+                strike=550.0,
+                expiration=date(2026, 11, 20),
+                action="sell_to_open",
+                quantity=1,
+            ),
+            TradeLeg(
+                option_type="call",
+                strike=600.0,
+                expiration=date(2026, 11, 20),
+                action="sell_to_open",
+                quantity=1,
+            ),
         ],
     )
     ledger.s.add(trade)
@@ -79,6 +91,8 @@ async def test_audit_take_profit_auto_attaches(ledger):
     async def mock_attach(t):
         return "3002"
 
-    alerts = await audit_take_profit_orders(ledger, active_broker_order_ids=set(), auto_attach_fn=mock_attach)
+    alerts = await audit_take_profit_orders(
+        ledger, active_broker_order_ids=set(), auto_attach_fn=mock_attach
+    )
     assert len(alerts) == 1
     assert trade.tp_order_id == "3002"

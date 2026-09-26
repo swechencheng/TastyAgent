@@ -116,7 +116,9 @@ class OpenPosition:
     buying_power_reduction: float
     dte_remaining: int
     as_of: date
-    current_max_short_delta: float | None = None  # live |delta| of the most-tested short leg
+    current_max_short_delta: float | None = (
+        None  # live |delta| of the most-tested short leg
+    )
 
     @property
     def days_held(self) -> int:

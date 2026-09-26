@@ -33,7 +33,9 @@ class ExecOutcome:
 
 
 class Executor:
-    def __init__(self, ledger: Ledger, mode: TradingMode, placer: Placer | None = None) -> None:
+    def __init__(
+        self, ledger: Ledger, mode: TradingMode, placer: Placer | None = None
+    ) -> None:
         self.ledger = ledger
         self.mode = mode
         self.placer = placer
@@ -52,7 +54,9 @@ class Executor:
         self.ledger.mark_working(trade, order_id)
         return ExecOutcome(trade.id, trade.symbol, "placed", f"order {order_id}")
 
-    async def execute_cycle(self, result: CycleResult, decision: Decision) -> list[ExecOutcome]:
+    async def execute_cycle(
+        self, result: CycleResult, decision: Decision
+    ) -> list[ExecOutcome]:
         outcomes: list[ExecOutcome] = []
 
         # Persist rejected candidates for the audit trail / dashboard.
@@ -62,14 +66,22 @@ class Executor:
 
         for planned in result.planned:
             trade = self.ledger.record_planned(
-                planned.candidate, planned.contracts, planned.rationale, self.mode, decision
+                planned.candidate,
+                planned.contracts,
+                planned.rationale,
+                self.mode,
+                decision,
             )
             if self.mode is TradingMode.LIVE_APPROVAL:
-                outcomes.append(ExecOutcome(trade.id, trade.symbol, "queued_for_approval"))
+                outcomes.append(
+                    ExecOutcome(trade.id, trade.symbol, "queued_for_approval")
+                )
             elif self._places_immediately():
                 outcomes.append(await self._place(trade))
             else:  # BACKTEST
-                outcomes.append(ExecOutcome(trade.id, trade.symbol, "recorded", "planned"))
+                outcomes.append(
+                    ExecOutcome(trade.id, trade.symbol, "recorded", "planned")
+                )
         return outcomes
 
     # --- live approval queue ---
@@ -78,7 +90,9 @@ class Executor:
         if trade is None:
             return ExecOutcome(trade_id, "?", "error", "trade not found")
         if trade.status is not TradeStatus.PENDING_APPROVAL:
-            return ExecOutcome(trade_id, trade.symbol, "error", f"not pending ({trade.status.value})")
+            return ExecOutcome(
+                trade_id, trade.symbol, "error", f"not pending ({trade.status.value})"
+            )
         return await self._place(trade)
 
     def reject(self, trade_id: int, reason: str = "approval denied") -> ExecOutcome:

@@ -45,15 +45,22 @@ def test_rank_universe_by_ivr_then_liquidity():
     m = {
         "A": IVMetrics("A", 0.60, 0.60, 0.40, 0.20, 0.80, liquidity_rating=4),
         "B": IVMetrics("B", 0.20, 0.20, 0.25, 0.15, 0.65, liquidity_rating=5),
-        "C": IVMetrics("C", None, None, None, None, None, liquidity_rating=3),  # no IVR -> excluded
-        "D": IVMetrics("D", 0.60, 0.60, 0.40, 0.20, 0.80, liquidity_rating=5),  # ties A on IVR, higher liquidity
+        "C": IVMetrics(
+            "C", None, None, None, None, None, liquidity_rating=3
+        ),  # no IVR -> excluded
+        "D": IVMetrics(
+            "D", 0.60, 0.60, 0.40, 0.20, 0.80, liquidity_rating=5
+        ),  # ties A on IVR, higher liquidity
     }
     assert rank_universe(m, top_n=2) == ["D", "A"]
 
 
 def _client():
     eng = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool, future=True
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
     )
     init_db(eng)
     sf = sessionmaker(bind=eng, expire_on_commit=False, future=True)
@@ -71,7 +78,12 @@ def test_watchlist_api_crud():
     nflx = next(w for w in c.get("/api/watchlist").json() if w["symbol"] == "NFLX")
     assert nflx["enabled"] is False
 
-    assert c.post("/api/watchlist/import", json={"symbols": ["MSFT", "NVDA"]}).json()["added"] == 2
+    assert (
+        c.post("/api/watchlist/import", json={"symbols": ["MSFT", "NVDA"]}).json()[
+            "added"
+        ]
+        == 2
+    )
     assert c.delete("/api/watchlist/NFLX").status_code == 200
     assert c.delete("/api/watchlist/NFLX").status_code == 404
 

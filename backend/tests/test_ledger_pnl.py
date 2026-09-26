@@ -40,7 +40,9 @@ def test_positions_by_symbol():
     lg = ledger()
     d = lg.record_decision(TradingMode.SANDBOX, "", 0)
     for sym in ["SPY", "SPY", "QQQ"]:
-        t = lg.record_planned(make_candidate(symbol=sym), 1, "r", TradingMode.SANDBOX, d)
+        t = lg.record_planned(
+            make_candidate(symbol=sym), 1, "r", TradingMode.SANDBOX, d
+        )
         lg.mark_open(t)
     assert lg.positions_by_symbol() == {"SPY": 2, "QQQ": 1}
     assert len(lg.open_trades()) == 3

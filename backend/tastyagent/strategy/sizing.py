@@ -44,4 +44,6 @@ def size_trade(
 
     contracts = int(math.floor(budget / per_contract_bp))
     bp_used = contracts * per_contract_bp
-    return SizingResult(contracts, bp_used, f"{contracts} contract(s), ${bp_used:,.0f} BP")
+    return SizingResult(
+        contracts, bp_used, f"{contracts} contract(s), ${bp_used:,.0f} BP"
+    )

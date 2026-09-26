@@ -36,6 +36,8 @@ def test_zero_when_contract_too_large():
 
 def test_invalid_inputs():
     c = make_candidate(buying_power_reduction=0.0)
-    assert size_trade(c, net_liq=100_000, current_bp_used=0, limits=LIMITS).contracts == 0
+    assert (
+        size_trade(c, net_liq=100_000, current_bp_used=0, limits=LIMITS).contracts == 0
+    )
     c2 = make_candidate(buying_power_reduction=2000.0)
     assert size_trade(c2, net_liq=0, current_bp_used=0, limits=LIMITS).contracts == 0

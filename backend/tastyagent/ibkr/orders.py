@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 def build_combo_contract(
     symbol: str,
-    legs: List[Tuple[Option, str]],  # (qualified Option contract, action: 'BUY' | 'SELL')
+    legs: List[
+        Tuple[Option, str]
+    ],  # (qualified Option contract, action: 'BUY' | 'SELL')
 ) -> Contract:
     """Build an IBKR BAG (combo) contract from qualified option legs."""
     combo_legs = [
@@ -153,4 +155,8 @@ async def check_margin_preflight(
         }
     except Exception as e:
         logger.warning("Margin preflight failed: %s", e)
-        return {"init_margin_change": 0.0, "maint_margin_change": 0.0, "commission": 0.0}
+        return {
+            "init_margin_change": 0.0,
+            "maint_margin_change": 0.0,
+            "commission": 0.0,
+        }

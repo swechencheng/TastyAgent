@@ -22,7 +22,9 @@ class WatchlistRepo:
         self.s = session
 
     def all(self) -> list[WatchlistEntry]:
-        return list(self.s.scalars(select(WatchlistEntry).order_by(WatchlistEntry.symbol)))
+        return list(
+            self.s.scalars(select(WatchlistEntry).order_by(WatchlistEntry.symbol))
+        )
 
     def symbols(self) -> list[str]:
         """Enabled symbols — the agent's trading universe."""

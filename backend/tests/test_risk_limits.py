@@ -48,7 +48,9 @@ def test_total_bp_cap_blocks():
 
 
 def test_daily_loss_halt_blocks():
-    res = check_new_entry("SPY", 2000.0, healthy_state(realized_pnl_today=-3_500.0), LIMITS)
+    res = check_new_entry(
+        "SPY", 2000.0, healthy_state(realized_pnl_today=-3_500.0), LIMITS
+    )
     assert not res.ok
 
 

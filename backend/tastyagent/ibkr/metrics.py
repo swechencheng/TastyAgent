@@ -41,8 +41,7 @@ def _init_cache_table(db_path: str = DEFAULT_DB_PATH) -> None:
     """Ensure the IV cache table exists in the local SQLite database."""
     try:
         with sqlite3.connect(db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS iv_metrics_cache (
                     symbol TEXT NOT NULL,
                     cache_date TEXT NOT NULL,
@@ -53,14 +52,15 @@ def _init_cache_table(db_path: str = DEFAULT_DB_PATH) -> None:
                     max_iv REAL,
                     PRIMARY KEY (symbol, cache_date)
                 )
-                """
-            )
+                """)
             conn.commit()
     except Exception as e:
         logger.warning("Could not initialize IV metrics cache table: %s", e)
 
 
-def _get_cached_metric(symbol: str, today_str: str, db_path: str = DEFAULT_DB_PATH) -> Optional[IVMetrics]:
+def _get_cached_metric(
+    symbol: str, today_str: str, db_path: str = DEFAULT_DB_PATH
+) -> Optional[IVMetrics]:
     """Retrieve cached IV metrics for today if available."""
     try:
         with sqlite3.connect(db_path) as conn:
@@ -88,7 +88,9 @@ def _get_cached_metric(symbol: str, today_str: str, db_path: str = DEFAULT_DB_PA
     return None
 
 
-def _save_cached_metric(m: IVMetrics, today_str: str, db_path: str = DEFAULT_DB_PATH) -> None:
+def _save_cached_metric(
+    m: IVMetrics, today_str: str, db_path: str = DEFAULT_DB_PATH
+) -> None:
     """Save calculated IV metrics to local cache."""
     try:
         with sqlite3.connect(db_path) as conn:
@@ -98,7 +100,15 @@ def _save_cached_metric(m: IVMetrics, today_str: str, db_path: str = DEFAULT_DB_
                 (symbol, cache_date, iv_rank, iv_percentile, current_iv, min_iv, max_iv)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (m.symbol, today_str, m.iv_rank, m.iv_percentile, m.current_iv, m.min_iv, m.max_iv),
+                (
+                    m.symbol,
+                    today_str,
+                    m.iv_rank,
+                    m.iv_percentile,
+                    m.current_iv,
+                    m.min_iv,
+                    m.max_iv,
+                ),
             )
             conn.commit()
     except Exception as e:
@@ -134,11 +144,25 @@ async def fetch_symbol_iv_metric(
 
         if not bars:
             logger.warning("No historical IV bars returned for %s", symbol)
-            return IVMetrics(symbol=symbol, iv_rank=None, iv_percentile=None, current_iv=None, min_iv=None, max_iv=None)
+            return IVMetrics(
+                symbol=symbol,
+                iv_rank=None,
+                iv_percentile=None,
+                current_iv=None,
+                min_iv=None,
+                max_iv=None,
+            )
 
         ivs = [b.close for b in bars if b.close > 0]
         if not ivs:
-            return IVMetrics(symbol=symbol, iv_rank=None, iv_percentile=None, current_iv=None, min_iv=None, max_iv=None)
+            return IVMetrics(
+                symbol=symbol,
+                iv_rank=None,
+                iv_percentile=None,
+                current_iv=None,
+                min_iv=None,
+                max_iv=None,
+            )
 
         cur_iv = ivs[-1]
         min_iv = min(ivs)
@@ -160,12 +184,26 @@ async def fetch_symbol_iv_metric(
             max_iv=round(max_iv, 4),
         )
         _save_cached_metric(metric, today_str, db_path)
-        logger.info("%s IV Rank: %.2f%% (Current: %.2f%%, Min: %.2f%%, Max: %.2f%%)", symbol, iv_rank * 100, cur_iv * 100, min_iv * 100, max_iv * 100)
+        logger.info(
+            "%s IV Rank: %.2f%% (Current: %.2f%%, Min: %.2f%%, Max: %.2f%%)",
+            symbol,
+            iv_rank * 100,
+            cur_iv * 100,
+            min_iv * 100,
+            max_iv * 100,
+        )
         return metric
 
     except Exception as e:
         logger.warning("Failed to fetch historical IV for %s: %s", symbol, e)
-        return IVMetrics(symbol=symbol, iv_rank=None, iv_percentile=None, current_iv=None, min_iv=None, max_iv=None)
+        return IVMetrics(
+            symbol=symbol,
+            iv_rank=None,
+            iv_percentile=None,
+            current_iv=None,
+            min_iv=None,
+            max_iv=None,
+        )
 
 
 async def get_iv_metrics(

@@ -50,7 +50,9 @@ async def run_loop(
             except Exception as e:  # noqa: BLE001 - never let one cycle kill the loop
                 import logging
 
-                logging.getLogger("tastyagent.scheduler").exception("cycle failed: %s", e)
+                logging.getLogger("tastyagent.scheduler").exception(
+                    "cycle failed: %s", e
+                )
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval_seconds)
         except asyncio.TimeoutError:

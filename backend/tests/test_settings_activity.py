@@ -14,7 +14,10 @@ from .conftest import make_candidate
 
 def factory():
     eng = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool, future=True
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
     )
     init_db(eng)
     return sessionmaker(bind=eng, expire_on_commit=False, future=True)
@@ -63,8 +66,12 @@ def test_activity_feed():
     sf = factory()
     lg = Ledger(sf())
     d = lg.record_decision(TradingMode.SANDBOX, "sold a strangle in XLE", 3)
-    lg.record_planned(make_candidate(symbol="XLE"), 1, "high IVR", TradingMode.SANDBOX, d)
-    lg.record_rejected(make_candidate(symbol="SPY"), "risk: too big", TradingMode.SANDBOX, d)
+    lg.record_planned(
+        make_candidate(symbol="XLE"), 1, "high IVR", TradingMode.SANDBOX, d
+    )
+    lg.record_rejected(
+        make_candidate(symbol="SPY"), "risk: too big", TradingMode.SANDBOX, d
+    )
 
     items = client(sf).get("/api/activity").json()
     assert len(items) == 1
@@ -79,7 +86,9 @@ def test_activity_feed():
 def test_trade_events_feed_and_timeline():
     sf = factory()
     lg = Ledger(sf())
-    t = lg.record_planned(make_candidate(symbol="XLE"), 1, "high IVR", TradingMode.SANDBOX)
+    t = lg.record_planned(
+        make_candidate(symbol="XLE"), 1, "high IVR", TradingMode.SANDBOX
+    )
     lg.mark_working(t, "ORD-1")
     lg.mark_open(t)
 

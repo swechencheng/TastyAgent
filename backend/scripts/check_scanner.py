@@ -24,7 +24,9 @@ async def main() -> None:
     await client.connect()
 
     try:
-        print(f"Running IBKR Market Scanner (scanCode={settings.ibkr_scan_code}, rows={settings.ibkr_scan_rows})...")
+        print(
+            f"Running IBKR Market Scanner (scanCode={settings.ibkr_scan_code}, rows={settings.ibkr_scan_rows})..."
+        )
         symbols = await scan_high_options_volume(
             client.data_ib,
             num_rows=settings.ibkr_scan_rows,

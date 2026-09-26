@@ -23,21 +23,19 @@ class GuardrailResult:
         return cls(ok=True, violations=())
 
 
-def validate_candidate(candidate: CandidateTrade, params: StrategyParams) -> GuardrailResult:
+def validate_candidate(
+    candidate: CandidateTrade, params: StrategyParams
+) -> GuardrailResult:
     """Validate a single candidate against the entry rails."""
     v: list[str] = []
 
     # Sell premium only when implied volatility is elevated.
     if candidate.iv_rank < params.min_iv_rank:
-        v.append(
-            f"iv_rank {candidate.iv_rank:.2f} < min {params.min_iv_rank:.2f}"
-        )
+        v.append(f"iv_rank {candidate.iv_rank:.2f} < min {params.min_iv_rank:.2f}")
 
     # Days to expiration window (~45 DTE).
     if not (params.min_dte <= candidate.dte <= params.max_dte):
-        v.append(
-            f"dte {candidate.dte} outside [{params.min_dte}, {params.max_dte}]"
-        )
+        v.append(f"dte {candidate.dte} outside [{params.min_dte}, {params.max_dte}]")
 
     # Delta-based strike selection: cap risk on short legs.
     short_delta = candidate.max_short_leg_delta

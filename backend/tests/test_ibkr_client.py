@@ -34,6 +34,7 @@ def test_ibkr_client_account_fallback_when_empty():
 def test_ibkr_client_contract_details_patch():
     # Verify monkey patch is applied to ib_async.wrapper.Wrapper.contractDetails
     import ib_async.wrapper
+
     wrapper = ib_async.wrapper.Wrapper(ib=MagicMock())
     # If reqId not in results, it should silently return without error
     wrapper._results = {}

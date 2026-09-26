@@ -14,7 +14,10 @@ from .conftest import make_candidate
 
 def shared_factory():
     engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool, future=True
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
     )
     init_db(engine)
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
@@ -40,7 +43,9 @@ def seed_open_and_closed(sf):
 def sandbox_client():
     sf = shared_factory()
     seed_open_and_closed(sf)
-    return TestClient(create_app(sf, Runtime(mode=TradingMode.SANDBOX, starting_capital=1_000_000)))
+    return TestClient(
+        create_app(sf, Runtime(mode=TradingMode.SANDBOX, starting_capital=1_000_000))
+    )
 
 
 def test_status():
@@ -78,7 +83,11 @@ def test_benchmark_with_snapshots():
     s = sf()
     base = datetime(2026, 1, 1, tzinfo=timezone.utc)
     s.add(EquitySnapshot(ts=base, net_liq=1_000_000.0, sp500_close=500.0))
-    s.add(EquitySnapshot(ts=base + timedelta(days=1), net_liq=1_050_000.0, sp500_close=510.0))
+    s.add(
+        EquitySnapshot(
+            ts=base + timedelta(days=1), net_liq=1_050_000.0, sp500_close=510.0
+        )
+    )
     s.commit()
     client = TestClient(create_app(sf, Runtime(mode=TradingMode.SANDBOX)))
 
@@ -91,7 +100,9 @@ def test_benchmark_with_snapshots():
 
 def test_mode_and_kill_switch():
     c = sandbox_client()
-    assert c.post("/api/kill-switch", json={"engaged": True}).json()["kill_switch"] is True
+    assert (
+        c.post("/api/kill-switch", json={"engaged": True}).json()["kill_switch"] is True
+    )
     j = c.post("/api/mode", json={"mode": "live_approval"}).json()
     assert j["mode"] == "live_approval" and j["requires_approval"] is True
     assert c.post("/api/mode", json={"mode": "bogus"}).status_code == 400

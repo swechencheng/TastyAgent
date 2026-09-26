@@ -15,7 +15,10 @@ def planned(n=1):
 
 def cycle(planned_list=None, rejected=None):
     return CycleResult(
-        planned=planned_list or [], rejected=rejected or [], commentary="x", considered=1
+        planned=planned_list or [],
+        rejected=rejected or [],
+        commentary="x",
+        considered=1,
     )
 
 
@@ -81,7 +84,9 @@ async def test_backtest_records_planned_without_placing():
 async def test_rejected_candidates_recorded():
     lg, d = setup(TradingMode.SANDBOX)
     ex = Executor(lg, TradingMode.SANDBOX, FakePlacer())
-    out = await ex.execute_cycle(cycle(rejected=[(make_candidate(), "risk: too big")]), d)
+    out = await ex.execute_cycle(
+        cycle(rejected=[(make_candidate(), "risk: too big")]), d
+    )
     assert any(o.action == "rejected" for o in out)
     assert lg.all_trades()[-1].status is TradeStatus.REJECTED
 
@@ -101,7 +106,9 @@ async def test_placer_error_cancels_trade():
 def test_tracker_reconciles_fill_and_marks():
     lg = Ledger(in_memory_session())
     d = lg.record_decision(TradingMode.SANDBOX, "", 0)
-    t = lg.record_planned(make_candidate(max_profit=250.0), 1, "r", TradingMode.SANDBOX, d)
+    t = lg.record_planned(
+        make_candidate(max_profit=250.0), 1, "r", TradingMode.SANDBOX, d
+    )
     lg.mark_working(t, "ORD1")
     reconcile_fills(lg, {"ORD1": "Filled"})
     assert t.status is TradeStatus.OPEN

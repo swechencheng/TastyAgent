@@ -39,7 +39,9 @@ async def main() -> None:
         print(f"\nGenerated {len(candidates)} candidate(s):")
         for c in candidates:
             gr = validate_candidate(c, params)
-            strikes = "/".join(f"{leg.option_type.value}{leg.strike:g}" for leg in c.legs)
+            strikes = "/".join(
+                f"{leg.option_type.value}{leg.strike:g}" for leg in c.legs
+            )
             print(
                 f"  {c.symbol} {c.strategy.value} {strikes} dte={c.dte} "
                 f"IVR={c.iv_rank:.0%} credit=${c.net_credit:,.0f} "

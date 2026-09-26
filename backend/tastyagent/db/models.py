@@ -9,7 +9,15 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SAEnum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Enum as SAEnum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -47,7 +55,9 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    decision_id: Mapped[int | None] = mapped_column(ForeignKey("decisions.id"), nullable=True)
+    decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("decisions.id"), nullable=True
+    )
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     strategy: Mapped[str] = mapped_column(String(32))
@@ -57,7 +67,9 @@ class Trade(Base):
     rationale: Mapped[str] = mapped_column(Text, default="")
 
     # Entry economics (dollars).
-    entry_credit: Mapped[float] = mapped_column(Float, default=0.0)  # total credit received
+    entry_credit: Mapped[float] = mapped_column(
+        Float, default=0.0
+    )  # total credit received
     buying_power: Mapped[float] = mapped_column(Float, default=0.0)
     dte_at_entry: Mapped[int] = mapped_column(Integer, default=0)
     entry_date: Mapped[date | None] = mapped_column(default=None)
@@ -74,7 +86,9 @@ class Trade(Base):
     opened_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow
+    )
 
     decision: Mapped[Decision | None] = relationship(back_populates="trades")
     legs: Mapped[list["TradeLeg"]] = relationship(
@@ -135,7 +149,9 @@ class TradeEvent(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     trade_id: Mapped[int] = mapped_column(ForeignKey("trades.id"), index=True)
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
-    kind: Mapped[str] = mapped_column(String(24))  # planned|working|open|managed|rolled|closed|rejected|canceled
+    kind: Mapped[str] = mapped_column(
+        String(24)
+    )  # planned|working|open|managed|rolled|closed|rejected|canceled
     detail: Mapped[str] = mapped_column(Text, default="")
 
     trade: Mapped["Trade"] = relationship(back_populates="events")
@@ -148,7 +164,9 @@ class WatchlistEntry(Base):
 
     symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
     enabled: Mapped[bool] = mapped_column(default=True)
-    source: Mapped[str] = mapped_column(String(48), default="custom")  # custom | default | tt:<name>
+    source: Mapped[str] = mapped_column(
+        String(48), default="custom"
+    )  # custom | default | tt:<name>
     added_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

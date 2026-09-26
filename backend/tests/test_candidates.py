@@ -41,8 +41,14 @@ def test_probability_of_profit():
 
 def test_candidate_pop_property():
     c = build_strangle_candidate(
-        "SPY", 100.0, 0.45, 45, _opt(90), _opt(110),
-        _snap("xp", 1.0, 1.1, -0.16), _snap("xc", 1.2, 1.3, 0.16),
+        "SPY",
+        100.0,
+        0.45,
+        45,
+        _opt(90),
+        _opt(110),
+        _snap("xp", 1.0, 1.1, -0.16),
+        _snap("xc", 1.2, 1.3, 0.16),
     )
     assert round(c.probability_of_profit, 2) == 0.68  # 16Δ strangle
 
@@ -56,14 +62,21 @@ def _opt(strike):
 
 
 def _snap(sym, bid, ask, delta):
-    return OptionSnapshot(streamer_symbol=sym, bid=Decimal(str(bid)), ask=Decimal(str(ask)), delta=delta)
+    return OptionSnapshot(
+        streamer_symbol=sym, bid=Decimal(str(bid)), ask=Decimal(str(ask)), delta=delta
+    )
 
 
 def test_build_strangle_candidate_passes_guardrails():
     c = build_strangle_candidate(
-        "SPY", 100.0, 0.45, 45,
-        _opt(90), _opt(110),
-        _snap("xp", 1.0, 1.1, -0.16), _snap("xc", 1.2, 1.3, 0.15),
+        "SPY",
+        100.0,
+        0.45,
+        45,
+        _opt(90),
+        _opt(110),
+        _snap("xp", 1.0, 1.1, -0.16),
+        _snap("xc", 1.2, 1.3, 0.15),
     )
     assert c is not None
     assert c.strategy is Strategy.SHORT_STRANGLE
@@ -76,9 +89,14 @@ def test_build_strangle_candidate_passes_guardrails():
 
 def test_build_returns_none_without_quotes():
     c = build_strangle_candidate(
-        "SPY", 100.0, 0.45, 45,
-        _opt(90), _opt(110),
-        OptionSnapshot("xp", None, None, -0.16), _snap("xc", 1.2, 1.3, 0.15),
+        "SPY",
+        100.0,
+        0.45,
+        45,
+        _opt(90),
+        _opt(110),
+        OptionSnapshot("xp", None, None, -0.16),
+        _snap("xc", 1.2, 1.3, 0.15),
     )
     assert c is None
 
@@ -86,7 +104,9 @@ def test_build_returns_none_without_quotes():
 def test_naked_put_candidate():
     from tastyagent.strategy.candidates import build_naked_put_candidate
 
-    c = build_naked_put_candidate("SPY", 100.0, 0.45, 45, _opt(95), _snap("x95", 0.98, 1.02, -0.16))
+    c = build_naked_put_candidate(
+        "SPY", 100.0, 0.45, 45, _opt(95), _snap("x95", 0.98, 1.02, -0.16)
+    )
     assert c.strategy is Strategy.NAKED_PUT
     assert round(c.net_credit, 2) == 100.0  # mid 1.00 * 100
     assert round(c.max_loss, 2) == 95 * 100 - 100  # strike notional - credit
@@ -98,9 +118,16 @@ def test_put_credit_spread_is_defined_risk():
     from tastyagent.models import OptionType
 
     c = build_credit_spread_candidate(
-        "SPY", 100.0, 0.45, 45, _opt(95), _opt(90),
-        _snap("xs", 0.98, 1.02, -0.28), _snap("xl", 0.39, 0.41, -0.10),
-        option_type=OptionType.PUT, strategy=Strategy.PUT_CREDIT_SPREAD,
+        "SPY",
+        100.0,
+        0.45,
+        45,
+        _opt(95),
+        _opt(90),
+        _snap("xs", 0.98, 1.02, -0.28),
+        _snap("xl", 0.39, 0.41, -0.10),
+        option_type=OptionType.PUT,
+        strategy=Strategy.PUT_CREDIT_SPREAD,
     )
     assert c.strategy is Strategy.PUT_CREDIT_SPREAD
     assert round(c.net_credit, 2) == 60.0  # (1.00 - 0.40) * 100
@@ -115,9 +142,16 @@ def test_credit_spread_requires_a_credit():
     from tastyagent.models import OptionType
 
     c = build_credit_spread_candidate(
-        "SPY", 100.0, 0.45, 45, _opt(95), _opt(90),
-        _snap("xs", 0.39, 0.41, -0.28), _snap("xl", 0.98, 1.02, -0.10),  # long worth more
-        option_type=OptionType.PUT, strategy=Strategy.PUT_CREDIT_SPREAD,
+        "SPY",
+        100.0,
+        0.45,
+        45,
+        _opt(95),
+        _opt(90),
+        _snap("xs", 0.39, 0.41, -0.28),
+        _snap("xl", 0.98, 1.02, -0.10),  # long worth more
+        option_type=OptionType.PUT,
+        strategy=Strategy.PUT_CREDIT_SPREAD,
     )
     assert c is None
 

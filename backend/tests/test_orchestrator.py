@@ -27,7 +27,9 @@ def selector_picking(picks):
             if i < len(ids)
         ]
         sels.append(
-            LLMTradeSelection(candidate_id="GHOST-naked_put-99", contracts=1, rationale="ghost")
+            LLMTradeSelection(
+                candidate_id="GHOST-naked_put-99", contracts=1, rationale="ghost"
+            )
         )
         return LLMDecision(selections=sels, commentary="stub"), id_map
 
@@ -44,8 +46,14 @@ async def test_pre_guardrail_filters_before_llm():
     good = make_candidate(symbol="SPY")
     bad = make_candidate(symbol="QQQ", iv_rank=0.05)  # fails IVR guardrail
     # selector tries to pick both passing candidates (only `good` is passing)
-    res = await run_cycle([good, bad], portfolio(), {}, PARAMS, LIMITS,
-                          selector=selector_picking([(0, 1), (1, 1)]))
+    res = await run_cycle(
+        [good, bad],
+        portfolio(),
+        {},
+        PARAMS,
+        LIMITS,
+        selector=selector_picking([(0, 1), (1, 1)]),
+    )
     assert res.considered == 1
     assert len(res.planned) == 1
     assert res.planned[0].candidate.symbol == "SPY"
@@ -53,32 +61,43 @@ async def test_pre_guardrail_filters_before_llm():
 
 async def test_hallucinated_id_ignored():
     good = make_candidate(symbol="SPY")
-    res = await run_cycle([good], portfolio(), {}, PARAMS, LIMITS,
-                          selector=selector_picking([]))  # only the ghost pick
+    res = await run_cycle(
+        [good], portfolio(), {}, PARAMS, LIMITS, selector=selector_picking([])
+    )  # only the ghost pick
     assert res.planned == []
 
 
 async def test_sizing_caps_llm_quantity():
     # 2000 BP/contract, 5% of 100k = 5k/trade -> max 2 contracts even if LLM asks 10
     c = make_candidate(symbol="SPY", buying_power_reduction=2000.0)
-    res = await run_cycle([c], portfolio(), {}, PARAMS, LIMITS,
-                          selector=selector_picking([(0, 10)]))
+    res = await run_cycle(
+        [c], portfolio(), {}, PARAMS, LIMITS, selector=selector_picking([(0, 10)])
+    )
     assert len(res.planned) == 1
     assert res.planned[0].contracts == 2
 
 
 async def test_oversized_contract_rejected_by_sizing():
     c = make_candidate(symbol="SPY", buying_power_reduction=9000.0)  # > 5k per-trade
-    res = await run_cycle([c], portfolio(), {}, PARAMS, LIMITS,
-                          selector=selector_picking([(0, 1)]))
+    res = await run_cycle(
+        [c], portfolio(), {}, PARAMS, LIMITS, selector=selector_picking([(0, 1)])
+    )
     assert res.planned == []
     assert any("sizing" in reason for _, reason in res.rejected)
 
 
 async def test_per_symbol_concentration_rejects_third():
-    cands = [make_candidate(symbol="SPY", buying_power_reduction=2000.0) for _ in range(3)]
-    res = await run_cycle(cands, portfolio(), {}, PARAMS, LIMITS,
-                          selector=selector_picking([(0, 1), (1, 1), (2, 1)]))
+    cands = [
+        make_candidate(symbol="SPY", buying_power_reduction=2000.0) for _ in range(3)
+    ]
+    res = await run_cycle(
+        cands,
+        portfolio(),
+        {},
+        PARAMS,
+        LIMITS,
+        selector=selector_picking([(0, 1), (1, 1), (2, 1)]),
+    )
     assert len(res.planned) == 2  # max_positions_per_symbol = 2
     assert any("risk" in reason for _, reason in res.rejected)
 
@@ -86,9 +105,17 @@ async def test_per_symbol_concentration_rejects_third():
 async def test_running_bp_accumulates_across_picks():
     # total budget 40% of 100k = 40k; 9k/contract trades, but per-trade cap 5% = 5k
     # so each trade sizes to 0 -> use smaller bp to test total-cap accumulation
-    cands = [make_candidate(symbol=f"S{i}", buying_power_reduction=2000.0) for i in range(3)]
-    res = await run_cycle(cands, portfolio(bp_used=37_000.0), {}, PARAMS, LIMITS,
-                          selector=selector_picking([(0, 1), (1, 1), (2, 1)]))
+    cands = [
+        make_candidate(symbol=f"S{i}", buying_power_reduction=2000.0) for i in range(3)
+    ]
+    res = await run_cycle(
+        cands,
+        portfolio(bp_used=37_000.0),
+        {},
+        PARAMS,
+        LIMITS,
+        selector=selector_picking([(0, 1), (1, 1), (2, 1)]),
+    )
     # 37k used, 40k cap -> only 3k headroom -> first trade (2k) ok, leaves 1k -> rest rejected
     assert len(res.planned) == 1
     planned_bp = sum(p.buying_power for p in res.planned)
